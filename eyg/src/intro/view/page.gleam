@@ -65,7 +65,7 @@ pub fn runner(state) {
   h.div(
     [
       a.class(
-        "bg-white bottom-8 fixed p-2 right-4 rounded shadow-xl top-4 w-1/3",
+        "bg-white bg-opacity-70 bottom-8 fixed p-2 right-4 rounded top-4 w-1/3",
       ),
     ],
     [
@@ -154,7 +154,7 @@ fn section() {
     //     h.div(
     //       [
     //         a.class(
-    //           "cover max-w-6xl mx-auto hstack bg-white my-6 border border-white p-4 rounded bg-opacity-80",
+    //           "cover max-w-6xl mx-auto hstack bg-white my-6 border border-white p-4 rounded bg-opacity-70",
     //         ),
     //       ],
     //       [
@@ -211,8 +211,10 @@ fn section() {
         ]),
       ],
       [
-        h.div([a.style([#("align-self", "bottom")])], [text("effects")]),
-        h.div([], [
+        h.div([a.style([#("align-self", "bottom")])], [
+          // text("effects")
+        ]),
+        h.div([a.class("bg-white bg-opacity-70")], [
           h.h2([a.class("p-2 text-xl")], [text("Handling an effect")]),
           h.div([a.class("p-2")], [
             text(
@@ -222,47 +224,41 @@ fn section() {
         ]),
         h.div([], []),
         h.div([a.class("cover text-right py-2")], [
-          h.br([]),
-          h.br([]),
-          h.br([]),
-          h.br([]),
-          h.br([]),
-          h.br([]),
-          h.span(
-            [
-              a.class("block text-white px-1"),
-              a.style([
-                #("margin-right", "-80ch"),
-                #("padding-right", "82ch"),
-                #("background-color", "#69d2e7"),
-              ]),
-            ],
-            [text("Fetch")],
-          ),
-          h.br([]),
-          // one less br when a block
           // h.br([]),
-          h.span(
-            [
-              a.class("block text-white px-1"),
-              a.style([
-                #("margin-right", "-80ch"),
-                #("padding-right", "82ch"),
-                #("background-color", "#69d2e7"),
-              ]),
-            ],
-            [text("Fetch")],
-          ),
+        // h.br([]),
+        // h.br([]),
+        // h.br([]),
+        // h.br([]),
+        // h.br([]),
+        // h.span(
+        //   [
+        //     a.class("block text-white px-1"),
+        //     a.style([
+        //       #("margin-right", "-80ch"),
+        //       #("padding-right", "82ch"),
+        //       #("background-color", "#69d2e7"),
+        //     ]),
+        //   ],
+        //   [text("Fetch")],
+        // ),
+        // h.br([]),
+        // // one less br when a block
+        // // h.br([]),
+        // h.span(
+        //   [
+        //     a.class("block text-white px-1"),
+        //     a.style([
+        //       #("margin-right", "-80ch"),
+        //       #("padding-right", "82ch"),
+        //       #("background-color", "#69d2e7"),
+        //     ]),
+        //   ],
+        //   [text("Fetch")],
+        // ),
         ]),
-        h.pre(
-          [
-            a.class(
-              "expand shadow-xl border-8 border-white bg-white bg-opacity-80",
-            ),
-          ],
-          [
-            text(
-              "let x = 1
+        h.pre([a.class("expand p-2 bg-white bg-opacity-70")], [
+          text(
+            "let x = 1
 let y = 2
 let z = 3
 let http = std.http
@@ -271,23 +267,21 @@ let set_username = (user_id, name) -> {
   perform Fetch(request)
 }
 set_username(\"123124248p574975345\", \"Bob\")",
-            ),
-          ],
-        ),
+          ),
+        ]),
         h.div([a.class("ml-2 cover italic py-2")], [
-          h.pre([], [
-            text(
-              "x = 1
-y = 2
-z = 3
+          //           h.pre([], [
+        //             text(
+        //               "x = 1
+        // y = 2
+        // z = 3
 
-user_id = 123124248p574975345, name = \"\"Bob
-request = {method, scheme, +3 more}
+        // user_id = 123124248p574975345, name = \"\"Bob
+        // request = {method, scheme, +3 more}
 
-
-Nil",
-            ),
-          ]),
+        // Nil",
+        //             ),
+        //           ]),
         ]),
       ],
     ),

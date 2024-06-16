@@ -24,11 +24,29 @@ fn build_spotless() {
   t.done([#("/terminal/index.html", index), #("/prompt.json", prompt), ..files])
 }
 
-pub fn preview() {
-  use drafting <- t.do(build_drafting())
-  use examine <- t.do(build_examine())
-  use spotless <- t.do(build_spotless())
+fn build_intro() {
+  use script <- t.do(t.bundle("intro/intro", "run"))
+  let files = [#("/intro.js", <<script:utf8>>)]
+  use index <- t.do(t.read("src/intro/index.html"))
+  use style <- t.do(t.read("src/intro/index.css"))
+  t.done([#("/intro/index.html", index), #("/intro/index.css", style), ..files])
+}
 
-  let files = list.flatten([drafting, examine, spotless])
-  t.done(files)
+pub fn preview(args) {
+  case args {
+    ["intro"] -> {
+      use files <- t.do(build_intro())
+
+      t.done(files)
+    }
+    _ -> {
+      use drafting <- t.do(build_drafting())
+      use examine <- t.do(build_examine())
+      use spotless <- t.do(build_spotless())
+      use intro <- t.do(build_intro())
+
+      let files = list.flatten([drafting, examine, spotless, intro])
+      t.done(files)
+    }
+  }
 }

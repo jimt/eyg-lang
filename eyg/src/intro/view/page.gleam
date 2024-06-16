@@ -57,7 +57,76 @@ pub fn render(state) {
       [],
     ),
     content(state),
+    runner(state),
   ])
+}
+
+pub fn runner(state) {
+  h.div(
+    [
+      a.class(
+        "bg-white bottom-8 fixed p-2 right-4 rounded shadow-xl top-4 w-1/3",
+      ),
+    ],
+    [
+      h.h1([], [text("Running ...")]),
+      // h.div([], [text("Log "), text("Hello World!")]),
+      // h.div([], [text("Ask")]),
+      h.br([]),
+      h.div([a.class("my-1 rounded px-2 bg-green-300")], [
+        h.span(
+          [a.class("font-bold text-right text-gray-600 inline-block w-20 mr-1")],
+          [text("Log ")],
+        ),
+        text("Hello, World!"),
+      ]),
+      h.div([a.class("my-1 rounded px-2 bg-pink-300")], [
+        h.span(
+          [a.class("font-bold text-right text-gray-600 inline-block w-20 mr-1")],
+          [text("Random ")],
+        ),
+        text("5"),
+        h.button([a.class("ml-30 italic")], [text("click to change")]),
+      ]),
+      h.div([a.class("my-1 rounded px-2 bg-green-300")], [
+        h.span(
+          [a.class("font-bold text-right text-gray-600 inline-block w-20 mr-1")],
+          [text("Log ")],
+        ),
+        text("Hello, World!"),
+      ]),
+      h.div([a.class("my-1 rounded px-2 bg-red-300")], [
+        h.span(
+          [a.class("font-bold text-right text-gray-600 inline-block w-20 mr-1")],
+          [text("Abort ")],
+        ),
+        text("5"),
+      ]),
+      h.br([]),
+      h.div(
+        [a.style([#("display", "grid"), #("grid-template-columns", "8ch 1fr")])],
+        [
+          h.div([a.class("text-right pr-1 border-r font-bold text-gray-600")], [
+            text("Log"),
+          ]),
+          h.span([a.class("pl-1")], [text("Hello, World!")]),
+          h.div([a.class("text-right pr-1 border-r font-bold text-gray-600")], [
+            text("Ask"),
+          ]),
+          h.span([a.class("pl-1")], [
+            h.input([a.class("border rounded")]),
+            h.button([a.class("inline-block px-2 bg-blue-300")], [
+              text("answer"),
+            ]),
+          ]),
+          h.div([a.class("text-right pr-1 border-r font-bold text-gray-600")], [
+            text("Log"),
+          ]),
+          h.span([a.class("pl-1")], [text("Hello, Sam!")]),
+        ],
+      ),
+    ],
+  )
 }
 
 pub fn content(state) {

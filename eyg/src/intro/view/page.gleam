@@ -74,102 +74,126 @@ pub fn content(state) {
 
 fn section() {
   h.div([a.class("")], [
-    h.h2([a.class("max-w-2xl mx-auto p-4 text-xl")], [
-      text("Handling an effect"),
-    ]),
-    h.div([a.class("max-w-2xl mx-auto px-4")], [
-      text(
-        "Lorem ipsum, dolor sit amet consectetur adipisicing elit. Totam quae voluptatum animi fuga placeat reprehenderit, quisquam mollitia exercitationem inventore corrupti numquam tempora assumenda eligendi impedit accusamus quidem labore voluptatem saepe?",
-      ),
-    ]),
+    //     h.h2([a.class("max-w-2xl mx-auto p-4 text-xl")], [
+    //       text("Handling an effect"),
+    //     ]),
+    //     h.div([a.class("max-w-2xl mx-auto px-4")], [
+    //       text(
+    //         "Lorem ipsum, dolor sit amet consectetur adipisicing elit. Totam quae voluptatum animi fuga placeat reprehenderit, quisquam mollitia exercitationem inventore corrupti numquam tempora assumenda eligendi impedit accusamus quidem labore voluptatem saepe?",
+    //       ),
+    //     ]),
+    //     h.div(
+    //       [
+    //         a.class(
+    //           "cover max-w-6xl mx-auto hstack bg-white my-6 border border-white p-4 rounded bg-opacity-80",
+    //         ),
+    //       ],
+    //       [
+    //         h.div([a.class("cover pr-2 border-r mr-2")], [
+    //           h.br([]),
+    //           h.br([]),
+    //           h.br([]),
+    //           h.br([]),
+    //           h.br([]),
+    //           h.br([]),
+    //           h.span([a.class("bg-indigo-500 text-white px-1")], [text("Fetch")]),
+    //           h.br([]),
+    //           h.br([]),
+    //           h.span([a.class("bg-indigo-500 text-white px-1")], [text("Fetch")]),
+    //         ]),
+    //         h.pre([a.class("expand")], [
+    //           text(
+    //             "let x = 1
+    // let y = 2
+    // let z = 3
+    // let http = std.http
+    // let set_username = (user_id, name) -> {
+    //   let request = http.get()
+    //   perform Fetch(request)
+    // }
+    // set_username(\"123124248p574975345\", \"Bob\")",
+    //           ),
+    //         ]),
+    //         h.div(
+    //           [a.class("pl-2 border-l border-gray-300 cover italic text-gray-700")],
+    //           [
+    //             h.pre([], [
+    //               text(
+    //                 "x = 1
+    // y = 2
+    // z = 3
+
+    // user_id = 123124248p574975345, name = \"\"Bob
+    // request = {method, scheme, +3 more}
+
+    // Nil",
+    //               ),
+    //             ]),
+    //           ],
+    //         ),
+    //       ],
+    //     ),
     h.div(
       [
-        a.class(
-          "cover max-w-6xl mx-auto hstack bg-white my-6 border border-white p-4 rounded bg-opacity-80",
-        ),
-      ],
-      [
-        h.div([a.class("cover pr-2 border-r mr-2")], [
-          h.br([]),
-          h.br([]),
-          h.br([]),
-          h.br([]),
-          h.br([]),
-          h.br([]),
-          h.span([a.class("bg-indigo-500 text-white px-1")], [text("Fetch")]),
-          h.br([]),
-          h.br([]),
-          h.span([a.class("bg-indigo-500 text-white px-1")], [text("Fetch")]),
-        ]),
-        h.pre([a.class("expand")], [
-          text(
-            "let x = 1
-let y = 2
-let z = 3
-let http = std.http
-let set_username = (user_id, name) -> {
-  let request = http.get()
-  perform Fetch(request)
-}
-set_username(\"123124248p574975345\", \"Bob\")",
-          ),
-        ]),
-        h.div(
-          [a.class("pl-2 border-l border-gray-300 cover italic text-gray-700")],
-          [
-            h.pre([], [
-              text(
-                "x = 1
-y = 2
-z = 3
-
-user_id = 123124248p574975345, name = \"\"Bob
-request = {method, scheme, +3 more}
-
-
-Nil",
-              ),
-            ]),
-          ],
-        ),
-      ],
-    ),
-    h.div(
-      [
+        a.class("mx-auto"),
         a.style([
           #("display", "grid"),
-          #("grid-template-columns", "25% minmax(50%, 42rem) 25%"),
+          #("grid-template-columns", "8em 80ch 1fr"),
         ]),
       ],
       [
-        h.div([], []),
+        h.div([a.style([#("align-self", "bottom")])], [text("effects")]),
         h.div([], [
-          h.h2(
-            [a.class("max-w-2xl mx-auto p-4 text-xl bg-white bg-opacity-60")],
-            [text("Handling an effect")],
-          ),
-          h.div([a.class("max-w-2xl mx-auto p-4 bg-white bg-opacity-60")], [
+          h.h2([a.class("p-2 text-xl")], [text("Handling an effect")]),
+          h.div([a.class("p-2")], [
             text(
               "Lorem ipsum, dolor sit amet consectetur adipisicing elit. Totam quae voluptatum animi fuga placeat reprehenderit, quisquam mollitia exercitationem inventore corrupti numquam tempora assumenda eligendi impedit accusamus quidem labore voluptatem saepe?",
             ),
           ]),
         ]),
         h.div([], []),
-        h.div([a.class("cover text-right")], [
+        h.div([a.class("cover text-right py-2")], [
           h.br([]),
           h.br([]),
           h.br([]),
           h.br([]),
           h.br([]),
           h.br([]),
-          h.span([a.class("bg-indigo-500 text-white px-1")], [text("Fetch")]),
+          h.span(
+            [
+              a.class("block text-white px-1"),
+              a.style([
+                #("margin-right", "-80ch"),
+                #("padding-right", "82ch"),
+                #("background-color", "#69d2e7"),
+              ]),
+            ],
+            [text("Fetch")],
+          ),
           h.br([]),
-          h.br([]),
-          h.span([a.class("bg-indigo-500 text-white px-1")], [text("Fetch")]),
+          // one less br when a block
+          // h.br([]),
+          h.span(
+            [
+              a.class("block text-white px-1"),
+              a.style([
+                #("margin-right", "-80ch"),
+                #("padding-right", "82ch"),
+                #("background-color", "#69d2e7"),
+              ]),
+            ],
+            [text("Fetch")],
+          ),
         ]),
-        h.pre([a.class("expand px-4 bg-white bg-opacity-60")], [
-          text(
-            "let x = 1
+        h.pre(
+          [
+            a.class(
+              "expand shadow-xl border-8 border-white bg-white bg-opacity-80",
+            ),
+          ],
+          [
+            text(
+              "let x = 1
 let y = 2
 let z = 3
 let http = std.http
@@ -178,9 +202,10 @@ let set_username = (user_id, name) -> {
   perform Fetch(request)
 }
 set_username(\"123124248p574975345\", \"Bob\")",
-          ),
-        ]),
-        h.div([a.class("pl-2 cover italic")], [
+            ),
+          ],
+        ),
+        h.div([a.class("ml-2 cover italic py-2")], [
           h.pre([], [
             text(
               "x = 1

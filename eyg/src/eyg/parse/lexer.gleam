@@ -23,8 +23,12 @@ fn pop(raw, start) {
 
   // If we track whitespace token then can always return original start
   case raw {
-    "\r\n" <> rest -> pop(rest, start + 2)
-    "\n" <> rest | " " <> rest | "\t" <> rest -> pop(rest, start + 1)
+    // "\r\n" <> rest -> pop(rest, start + 2)
+    // "\n" <> rest | " " <> rest | "\t" <> rest -> pop(rest, start + 1)
+    "\r\n" <> rest -> whitespace("\r\n", rest, done)
+    "\n" <> rest -> whitespace("\n", rest, done)
+    " " <> rest -> whitespace(" ", rest, done)
+    "\t" <> rest -> whitespace("\t", rest, done)
 
     "(" <> rest -> done(t.LeftParen, 1, rest)
     ")" <> rest -> done(t.RightParen, 1, rest)
@@ -76,6 +80,16 @@ fn pop(raw, start) {
         Error(Nil) -> Error(Nil)
       }
     }
+  }
+}
+
+fn whitespace(buffer, rest, done) {
+  case rest {
+    "\r\n" <> rest -> whitespace(buffer <> "\r\n", rest, done)
+    "\n" <> rest -> whitespace(buffer <> "\n", rest, done)
+    " " <> rest -> whitespace(buffer <> " ", rest, done)
+    "\t" <> rest -> whitespace(buffer <> "\t", rest, done)
+    _ -> done(t.Whitespace(buffer), byte_size(buffer), rest)
   }
 }
 

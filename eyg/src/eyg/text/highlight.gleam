@@ -1,6 +1,7 @@
 import eyg/parse/token as t
 
 pub type Category {
+  Whitespace
   Text
   UpperText
   Number
@@ -13,6 +14,7 @@ pub type Category {
 
 fn classify(token) {
   case token {
+    t.Whitespace(_) -> Whitespace
     t.Name(_) -> Text
     t.Uppername(_) -> UpperText
     t.Integer(_) -> Number
@@ -50,14 +52,15 @@ fn classify(token) {
 // returned reversed
 fn do_highlight(tokens, class, buffer, acc) {
   case tokens {
-    [] -> acc
-    [t.Perform as k, t.Uppername(l), ..tokens]
-    | [t.Deep as k, t.Uppername(l), ..tokens]
-    | [t.Shallow as k, t.Uppername(l), ..tokens]
-    | [t.Handle as k, t.Uppername(l), ..tokens] -> {
+    [] -> push(class, buffer, acc)
+    [t.Perform as k, t.Whitespace(w), t.Uppername(l), ..tokens]
+    | [t.Deep as k, t.Whitespace(w), t.Uppername(l), ..tokens]
+    | [t.Shallow as k, t.Whitespace(w), t.Uppername(l), ..tokens]
+    | [t.Handle as k, t.Whitespace(w), t.Uppername(l), ..tokens] -> {
       let acc = [
-        #(KeyWord, t.to_string(k)),
         #(Effect, l),
+        #(Whitespace, w),
+        #(KeyWord, t.to_string(k)),
         ..push(class, buffer, acc)
       ]
       do_highlight(tokens, Text, "", acc)

@@ -1,4 +1,5 @@
 pub type Token {
+  Whitespace(String)
   Name(String)
   Uppername(String)
   Integer(String)
@@ -34,10 +35,11 @@ pub type Token {
 
 pub fn to_string(token) {
   case token {
+    Whitespace(raw) -> raw
     Name(raw) -> raw
     Uppername(raw) -> raw
     Integer(raw) -> raw
-    String(raw) -> raw
+    String(raw) -> "\"" <> raw <> "\""
     Let -> "let"
     Match -> "match"
     Perform -> "perform"

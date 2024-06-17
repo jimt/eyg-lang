@@ -50,17 +50,25 @@ const background = "<svg class=\"w-full h-screen\" id=\"visual\" viewBox=\"0 0 9
 // TODO em vs char
 pub fn render(state) {
   // container has svg element
-  h.div([a.class("relative"), a.style([#("background-color", "#ffffeb")])], [
-    h.div(
-      [
-        a.class("fixed top-0 bottom-0 left-0 right-0"),
-        a.attribute("dangerous-unescaped-html", background),
-      ],
-      [],
-    ),
-    content(state),
-    runner(state),
-  ])
+  h.div(
+    [
+      a.class("relative min-h-screen"),
+      a.style([
+        // #("background-color", "#ffffeb")
+      ]),
+    ],
+    [
+      h.div(
+        [
+          a.class("fixed top-0 bottom-0 left-0 right-0"),
+          a.attribute("dangerous-unescaped-html", background),
+        ],
+        [],
+      ),
+      content(state),
+      runner(state),
+    ],
+  )
 }
 
 pub fn runner(state) {
@@ -141,11 +149,36 @@ let set_username = (user_id, name) -> {
 }
 set_username(\"123124248p574975345\", \"Bob\")"
 
+fn sections() {
+  [
+    #(
+      h.p([], [text("whats the point")]),
+      "let question = \"What's your name?\"
+let run = (_) -> {
+  let response = perform Ask(question)
+  perform Log(\"Hello\")
+}
+",
+    ),
+    #(
+      element.fragment([
+        h.h2([a.class("text-xl")], [text("Handling an effect")]),
+        h.div([a.class("")], [
+          text(
+            "Lorem ipsum, dolor sit amet consectetur adipisicing elit. Totam quae voluptatum animi fuga placeat reprehenderit, quisquam mollitia exercitationem inventore corrupti numquam tempora assumenda eligendi impedit accusamus quidem labore voluptatem saepe?",
+          ),
+        ]),
+      ]),
+      code,
+    ),
+  ]
+}
+
 pub fn content(state) {
-  h.div([a.class("relative")], [
+  h.div([a.class("relative vstack")], [
     h.div([a.class("cover expand")], [
       h.h1([a.class("p-4 text-6xl")], [text("Eyg")]),
-      h.div([a.class("")], list.repeat(section(code), 10)),
+      h.div([a.class("")], list.map(sections(), section)),
     ]),
     h.footer([a.class("cover sticky bottom-0 bg-gray-900 text-white")], [
       text("hi"),
@@ -153,67 +186,9 @@ pub fn content(state) {
   ])
 }
 
-fn section(code) {
+fn section(section) {
+  let #(context, code) = section
   h.div([a.class("")], [
-    //     h.h2([a.class("max-w-2xl mx-auto p-4 text-xl")], [
-    //       text("Handling an effect"),
-    //     ]),
-    //     h.div([a.class("max-w-2xl mx-auto px-4")], [
-    //       text(
-    //         "Lorem ipsum, dolor sit amet consectetur adipisicing elit. Totam quae voluptatum animi fuga placeat reprehenderit, quisquam mollitia exercitationem inventore corrupti numquam tempora assumenda eligendi impedit accusamus quidem labore voluptatem saepe?",
-    //       ),
-    //     ]),
-    //     h.div(
-    //       [
-    //         a.class(
-    //           "cover max-w-6xl mx-auto hstack bg-white my-6 border border-white p-4 rounded bg-opacity-70",
-    //         ),
-    //       ],
-    //       [
-    //         h.div([a.class("cover pr-2 border-r mr-2")], [
-    //           h.br([]),
-    //           h.br([]),
-    //           h.br([]),
-    //           h.br([]),
-    //           h.br([]),
-    //           h.br([]),
-    //           h.span([a.class("bg-indigo-500 text-white px-1")], [text("Fetch")]),
-    //           h.br([]),
-    //           h.br([]),
-    //           h.span([a.class("bg-indigo-500 text-white px-1")], [text("Fetch")]),
-    //         ]),
-    //         h.pre([a.class("expand")], [
-    //           text(
-    //             "let x = 1
-    // let y = 2
-    // let z = 3
-    // let http = std.http
-    // let set_username = (user_id, name) -> {
-    //   let request = http.get()
-    //   perform Fetch(request)
-    // }
-    // set_username(\"123124248p574975345\", \"Bob\")",
-    //           ),
-    //         ]),
-    //         h.div(
-    //           [a.class("pl-2 border-l border-gray-300 cover italic text-gray-700")],
-    //           [
-    //             h.pre([], [
-    //               text(
-    //                 "x = 1
-    // y = 2
-    // z = 3
-
-    // user_id = 123124248p574975345, name = \"\"Bob
-    // request = {method, scheme, +3 more}
-
-    // Nil",
-    //               ),
-    //             ]),
-    //           ],
-    //         ),
-    //       ],
-    //     ),
     h.div(
       [
         a.class("mx-auto"),
@@ -226,65 +201,13 @@ fn section(code) {
         h.div([a.style([#("align-self", "bottom")])], [
           // text("effects")
         ]),
-        h.div([a.class("bg-white bg-opacity-70")], [
-          h.h2([a.class("p-2 text-xl")], [text("Handling an effect")]),
-          h.div([a.class("p-2")], [
-            text(
-              "Lorem ipsum, dolor sit amet consectetur adipisicing elit. Totam quae voluptatum animi fuga placeat reprehenderit, quisquam mollitia exercitationem inventore corrupti numquam tempora assumenda eligendi impedit accusamus quidem labore voluptatem saepe?",
-            ),
-          ]),
-        ]),
+        h.div([a.class("my-4 bg-white bg-opacity-70 rounded")], [context]),
         h.div([], []),
-        h.div([a.class("cover text-right py-2")], [
-          // h.br([]),
-        // h.br([]),
-        // h.br([]),
-        // h.br([]),
-        // h.br([]),
-        // h.br([]),
-        // h.span(
-        //   [
-        //     a.class("block text-white px-1"),
-        //     a.style([
-        //       #("margin-right", "-80ch"),
-        //       #("padding-right", "82ch"),
-        //       #("background-color", "#69d2e7"),
-        //     ]),
-        //   ],
-        //   [text("Fetch")],
-        // ),
-        // h.br([]),
-        // // one less br when a block
-        // // h.br([]),
-        // h.span(
-        //   [
-        //     a.class("block text-white px-1"),
-        //     a.style([
-        //       #("margin-right", "-80ch"),
-        //       #("padding-right", "82ch"),
-        //       #("background-color", "#69d2e7"),
-        //     ]),
-        //   ],
-        //   [text("Fetch")],
-        // ),
-        ]),
-        h.pre([a.class("expand p-2 bg-white bg-opacity-70")], [text(code)]),
-        h.div([a.class("ml-2 cover italic py-2")], [
-          //           h.pre([], [
-        //             text(
-        //               "x = 1
-        // y = 2
-        // z = 3
-
-        // user_id = 123124248p574975345, name = \"\"Bob
-        // request = {method, scheme, +3 more}
-
-        // Nil",
-        //             ),
-        //           ]),
-        ]),
         h.div([], []),
-        h.pre([], highlighted(code)),
+        h.pre(
+          [a.class("my-4 p-2 bg-gray-200 rounded bg-opacity-70")],
+          highlighted(code),
+        ),
         h.div([], []),
       ],
     ),
@@ -303,8 +226,15 @@ fn highlighted(code) {
 fn highlight_token(token) {
   let #(classification, content) = token
   let class = case classification {
-    highlight.Text -> "text-red-500"
-    _ -> "text-green-500"
+    highlight.Whitespace -> ""
+    highlight.Text -> ""
+    highlight.UpperText -> "text-blue-400"
+    highlight.Number -> "text-indigo-400"
+    highlight.String -> "text-green-500"
+    highlight.KeyWord -> "text-gray-600"
+    highlight.Effect -> "text-yellow-600"
+    highlight.Punctuation -> ""
+    highlight.Unknown -> "text-red-500"
   }
   h.span([a.class(class)], [text(content)])
 }

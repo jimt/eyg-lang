@@ -101,12 +101,23 @@ pub fn runner(state) {
           case handle {
             state.Abort(message) ->
               h.div([a.class("bg-red-300 p-10")], [text(message)])
-            state.Asking(question, env, k) ->
+            state.Asking(question, value, env, k) ->
               h.div([a.class("border-4 border-green-500 px-6 py-2")], [
                 h.div([], [text(question)]),
                 h.form(
-                  [e.on_submit(state.Resume(v.Str("yo"), env, k, effects))],
-                  [h.input([a.class("border rounded")])],
+                  [e.on_submit(state.Resume(v.Str(value), env, k, effects))],
+                  [
+                    h.input([
+                      a.class("border rounded"),
+                      a.value(value),
+                      e.on_input(fn(value) {
+                        state.NewRunner(state.Runner(
+                          state.Asking(question, value, env, k),
+                          effects,
+                        ))
+                      }),
+                    ]),
+                  ],
                 ),
               ])
             state.Waiting -> text("waiting")
@@ -210,7 +221,7 @@ fn section(previous, section, post) {
 fn editor(code, on_update) {
   h.div([a.class("my-4 bg-gray-200 rounded bg-opacity-70")], [
     h.div([a.class("p-2")], [text_input(code, on_update)]),
-    case parse.from_string(code) {
+    case parse.block_from_string(code) {
       Ok(#(code, _)) ->
         h.div([a.class("text-right")], [
           h.button([e.on_click(state.Run(code))], [text("run")]),

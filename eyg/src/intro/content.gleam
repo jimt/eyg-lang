@@ -18,8 +18,8 @@ pub fn sections() {
       h.p([], [text("whats the point")]),
       "let question = \"What's your name?\"
 let run = (_) -> {
-  let response = perform Ask(question)
-  perform Log(\"Hello\")
+  let answer = perform Ask(question)
+  perform Log(!string_append(\"Hello \", answer))
 }
 run",
     ),

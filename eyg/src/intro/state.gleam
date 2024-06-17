@@ -25,6 +25,7 @@ pub fn init(_) {
 
 pub type Message {
   EditCode(sections: List(#(Element(Message), String)))
+  NewRunner(Runner)
   Run(#(Expression(#(Int, Int)), #(Int, Int)))
   Resume(v.Value(Nil, Nil), Env(Nil), Stack(Nil), List(Effect))
   CloseRunner
@@ -34,6 +35,10 @@ pub fn update(state, message) {
   case message {
     EditCode(sections) -> {
       let state = State(..state, sections: sections)
+      #(state, effect.none())
+    }
+    NewRunner(running) -> {
+      let state = State(..state, running: Some(running))
       #(state, effect.none())
     }
     Run(source) -> {
@@ -68,7 +73,7 @@ fn handle_next(result, effects) {
           case label {
             "Ask" -> {
               let assert Ok(question) = cast.as_string(lift)
-              Runner(Asking(question, env, k), effects)
+              Runner(Asking(question, "", env, k), effects)
             }
             "Log" -> {
               let assert Ok(message) = cast.as_string(lift)
@@ -93,7 +98,7 @@ pub type Effect {
 pub type Handle {
   Abort(String)
   Waiting
-  Asking(String, Env(Nil), Stack(Nil))
+  Asking(question: String, value: String, Env(Nil), Stack(Nil))
   Done(v.Value(Nil, Nil))
 }
 

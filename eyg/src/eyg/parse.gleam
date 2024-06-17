@@ -7,6 +7,5 @@ pub fn from_string(src) {
   src
   |> lexer.lex()
   |> token.drop_whitespace()
-  |> io.debug
-  |> parser.parse()
+  |> parser.expression()
 }

@@ -13,6 +13,7 @@ pub type Reason {
 }
 
 pub fn parse(tokens) {
+  io.debug("dont use parse but tokens direct as it panics")
   case expression(tokens) {
     Ok(#(e, [])) -> Ok(e)
     Ok(#(_, leftover)) -> {

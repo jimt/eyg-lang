@@ -20,7 +20,8 @@ pub fn sections() {
 let run = (_) -> {
   let response = perform Ask(question)
   perform Log(\"Hello\")
-}",
+}
+run",
     ),
     #(
       fragment([
@@ -31,7 +32,7 @@ let run = (_) -> {
           ),
         ]),
       ]),
-      code,
+      "5",
     ),
   ]
 }

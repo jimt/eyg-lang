@@ -1,10 +1,12 @@
 import eyg/parse/lexer
+import eyg/runtime/value as v
 import eyg/text/highlight
 import eyg/text/text
 import gleam/dynamic
 import gleam/list
 import gleam/listx
 import gleam/option.{None, Some}
+
 import intro/state
 import lustre/attribute as a
 import lustre/element.{fragment, none, text} as _
@@ -91,15 +93,25 @@ pub fn runner(state) {
           ),
         ],
         [
-          h.h1([], [
-            text("Running ..."),
+          h.h1([a.class("text-right")], [
+            // text("Running ..."),
             h.button([e.on_click(state.CloseRunner)], [text("close")]),
           ]),
           logs1(effects),
           case handle {
             state.Abort(message) ->
               h.div([a.class("bg-red-300 p-10")], [text(message)])
-            _ -> none()
+            state.Asking(question, env, k) ->
+              h.div([a.class("border-4 border-green-500 px-6 py-2")], [
+                h.div([], [text(question)]),
+                h.form(
+                  [e.on_submit(state.Resume(v.Str("yo"), env, k, effects))],
+                  [h.input([a.class("border rounded")])],
+                ),
+              ])
+            state.Waiting -> text("waiting")
+            state.Done(value) -> text(v.debug(value))
+            // _ -> text()
           },
         ],
       )
@@ -153,7 +165,7 @@ fn do_iterate(remaining, func, previous, acc) {
     [] -> list.reverse(acc)
     [item, ..remaining] -> {
       let acc = [func(previous, item, remaining), ..acc]
-      do_iterate(remaining, func, [item,..previous],acc)
+      do_iterate(remaining, func, [item, ..previous], acc)
     }
   }
 }
@@ -192,8 +204,18 @@ fn section(previous, section, post) {
 }
 
 fn editor(code, on_update) {
-  h.div([a.class("my-4 p-2 bg-gray-200 rounded bg-opacity-70")], [
-    text_input(code, on_update),
+  h.div([a.class("my-4 bg-gray-200 rounded bg-opacity-70")], [
+    h.div([a.class("p-2")], [text_input(code, on_update)]),
+    case parse.from_string(code) {
+      Ok(#(code, _)) ->
+        h.div([a.class("text-right")], [
+          h.button([e.on_click(state.Run(code))], [text("run")]),
+        ])
+      Error(reason) ->
+        h.div([a.class("px-2 -mt-1 py-1 rounded bg-pink-500 text-white")], [
+          text(string.inspect(reason)),
+        ])
+    },
   ])
 }
 
@@ -208,7 +230,8 @@ fn text_input(code, on_update) {
         #("position", "relative"),
         #("font-family", monospace),
         #("width", "100%"),
-        #("height", "100%"),
+        // #("height", "100%"),
+
         #("overflow", "hidden"),
       ]),
     ],
@@ -317,7 +340,7 @@ import eygir/annotated
 
 pub fn information(source) {
   case parse.from_string(source) {
-    Ok(tree) -> {
+    Ok(#(tree, _)) -> {
       let #(tree, spans) = annotated.strip_annotation(tree)
       let #(exp, bindings) = j.infer(tree, t.Empty, 0, j.new_state())
       let acc = annotated.strip_annotation(exp).1

@@ -1,9 +1,12 @@
 import eyg/parse/lexer
 import eyg/text/highlight
 import gleam/list
+import gleam/option.{None, Some}
+import intro/state
 import lustre/attribute as a
 import lustre/element.{text}
 import lustre/element/html as h
+import lustre/event
 
 const peach_background = "<svg class=\"w-full h-screen\" id=\"visual\" viewBox=\"0 0 900 600\" xmlns=\"http://www.w3.org/2000/svg\"
     xmlns:xlink=\"http://www.w3.org/1999/xlink\" version=\"1.1\">
@@ -70,21 +73,30 @@ pub fn render(state) {
 }
 
 pub fn runner(state) {
-  h.div(
-    [a.class("bg-white bottom-8 fixed right-4 rounded top-4 w-1/3 shadow-xl")],
-    [h.h1([], [text("Running ...")]), logs1(logs)],
-  )
-}
-
-const logs = [
-  Log("Hello, World!"), Random(5), Log("Hello, World!"),
-  Abort("something went wrong"),
-]
-
-pub type Effect {
-  Log(String)
-  Random(Int)
-  Abort(String)
+  let state.State(runner) = state
+  case runner {
+    None -> element.none()
+    Some(state.Runner(handle, effects)) ->
+      h.div(
+        [
+          a.class(
+            "bg-white bottom-8 fixed right-4 rounded top-4 w-1/3 shadow-xl",
+          ),
+        ],
+        [
+          h.h1([], [
+            text("Running ..."),
+            h.button([event.on_click(state.CloseRunner)], [text("close")]),
+          ]),
+          logs1(effects),
+          case handle {
+            state.Abort(message) ->
+              h.div([a.class("bg-red-300 p-10")], [text(message)])
+            _ -> element.none()
+          },
+        ],
+      )
+  }
 }
 
 fn logs1(logs) {
@@ -97,23 +109,17 @@ fn logs1(logs) {
     ],
     list.flat_map(logs, fn(effect) {
       case effect {
-        Log(message) -> [
+        state.Log(message) -> [
           h.span([a.class("bg-gray-700 text-white text-right px-2")], [
             text("Log"),
           ]),
           h.span([a.class("px-1")], [text(message)]),
         ]
-        Random(value) -> [
+        state.Random(value) -> [
           h.span([a.class("bg-gray-700 text-white text-right px-2")], [
             text("Random"),
           ]),
           h.span([a.class("px-1")], [text("todo")]),
-        ]
-        Abort(reason) -> [
-          h.span([a.class("bg-gray-700 text-white text-right px-2")], [
-            text("Abort"),
-          ]),
-          h.span([a.class("px-1")], [text(reason)]),
         ]
       }
     }),
@@ -161,7 +167,9 @@ pub fn content(state) {
       h.h1([a.class("p-4 text-6xl")], [text("Eyg")]),
       h.div([a.class("")], list.map(sections(), section)),
     ]),
-    h.footer([a.class("cover sticky bottom-0 bg-gray-900 text-white")], [
+    // bad things with min h 100% in relative maybe fixed is better than sticky
+    // sticky works as long as there is content
+    h.footer([a.class("cover sticky bottom-0 mt-64 bg-gray-900 text-white")], [
       text("hi"),
     ]),
   ])
@@ -186,7 +194,10 @@ fn section(section) {
         h.div([], []),
         h.div([], []),
         h.pre(
-          [a.class("my-4 p-2 bg-gray-200 rounded bg-opacity-70")],
+          [
+            a.class("my-4 p-2 bg-gray-200 rounded bg-opacity-70"),
+            event.on_click(state.Run(code)),
+          ],
           highlighted(code),
         ),
         h.div([], []),
@@ -195,7 +206,12 @@ fn section(section) {
   ])
 }
 
+fn errors(code) {
+  information(code <> "\r\nrun")
+}
+
 import gleam/pair
+import gleam/string
 
 fn highlighted(code) {
   code
@@ -218,4 +234,31 @@ fn highlight_token(token) {
     highlight.Unknown -> "text-red-500"
   }
   h.span([a.class(class)], [text(content)])
+}
+
+import eyg/analysis/inference/levels_j/contextual as j
+import eyg/analysis/type_/binding
+import eyg/analysis/type_/isomorphic as t
+import eyg/parse
+import eygir/annotated
+
+pub fn information(source) {
+  case parse.from_string(source) {
+    Ok(tree) -> {
+      let #(tree, spans) = annotated.strip_annotation(tree)
+      let #(exp, bindings) = j.infer(tree, t.Empty, 0, j.new_state())
+      let acc = annotated.strip_annotation(exp).1
+      let acc =
+        list.map(acc, fn(node) {
+          let #(error, typed, effect, env) = node
+          let typed = binding.resolve(typed, bindings)
+
+          let effect = binding.resolve(effect, bindings)
+          #(error, typed, effect)
+        })
+
+      Ok(#(spans, acc))
+    }
+    Error(reason) -> Error(reason)
+  }
 }

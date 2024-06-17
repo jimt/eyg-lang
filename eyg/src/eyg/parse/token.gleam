@@ -1,3 +1,5 @@
+import gleam/list
+
 pub type Token {
   Whitespace(String)
   Name(String)
@@ -31,6 +33,15 @@ pub type Token {
   // Invalid token
   UnexpectedGrapheme(String)
   UnterminatedString(String)
+}
+
+pub fn drop_whitespace(tokens) {
+  list.filter(tokens, fn(token) {
+    case token {
+      #(Whitespace(_), _) -> False
+      _ -> True
+    }
+  })
 }
 
 pub fn to_string(token) {

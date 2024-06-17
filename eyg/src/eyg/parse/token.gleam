@@ -77,6 +77,6 @@ pub fn to_string(token) {
 
     // Invalid token
     UnexpectedGrapheme(raw) -> raw
-    UnterminatedString(raw) -> raw
+    UnterminatedString(raw) -> "\"" <> raw
   }
 }

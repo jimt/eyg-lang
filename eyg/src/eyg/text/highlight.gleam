@@ -45,7 +45,7 @@ fn classify(token) {
     t.RightSquare -> Punctuation
 
     t.UnexpectedGrapheme(_) -> Unknown
-    t.UnterminatedString(_) -> Unknown
+    t.UnterminatedString(_) -> String
   }
 }
 

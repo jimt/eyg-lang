@@ -329,7 +329,8 @@ fn highlight_token(token) {
     highlight.Number -> "text-indigo-400"
     highlight.String -> "text-green-500"
     highlight.KeyWord -> "text-gray-600"
-    highlight.Effect -> "text-yellow-600"
+    highlight.Effect -> "text-yellow-500"
+    highlight.Builtin -> "text-pink-400"
     highlight.Punctuation -> ""
     highlight.Unknown -> "text-red-500"
   }

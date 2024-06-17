@@ -8,6 +8,7 @@ pub type Category {
   String
   KeyWord
   Effect
+  Builtin
   Punctuation
   Unknown
 }
@@ -63,6 +64,10 @@ fn do_highlight(tokens, class, buffer, acc) {
         #(KeyWord, t.to_string(k)),
         ..push(class, buffer, acc)
       ]
+      do_highlight(tokens, Text, "", acc)
+    }
+    [t.Bang as k, t.Name(l), ..tokens] -> {
+      let acc = [#(Builtin, t.to_string(k) <> l), ..push(class, buffer, acc)]
       do_highlight(tokens, Text, "", acc)
     }
     [next, ..tokens] -> {

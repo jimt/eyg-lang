@@ -1,12 +1,19 @@
 import eyg/parse/lexer
 import eyg/text/highlight
+import eyg/text/text
+import gleam/dynamic
 import gleam/list
+import gleam/listx
 import gleam/option.{None, Some}
 import intro/state
 import lustre/attribute as a
-import lustre/element.{text}
+import lustre/element.{fragment, none, text} as _
 import lustre/element/html as h
-import lustre/event
+import lustre/event as e
+import plinth/browser/document
+import plinth/browser/element
+import plinth/browser/event
+import plinth/browser/window
 
 const peach_background = "<svg class=\"w-full h-screen\" id=\"visual\" viewBox=\"0 0 900 600\" xmlns=\"http://www.w3.org/2000/svg\"
     xmlns:xlink=\"http://www.w3.org/1999/xlink\" version=\"1.1\">
@@ -73,9 +80,9 @@ pub fn render(state) {
 }
 
 pub fn runner(state) {
-  let state.State(runner) = state
+  let state.State(sections, runner) = state
   case runner {
-    None -> element.none()
+    None -> none()
     Some(state.Runner(handle, effects)) ->
       h.div(
         [
@@ -86,13 +93,13 @@ pub fn runner(state) {
         [
           h.h1([], [
             text("Running ..."),
-            h.button([event.on_click(state.CloseRunner)], [text("close")]),
+            h.button([e.on_click(state.CloseRunner)], [text("close")]),
           ]),
           logs1(effects),
           case handle {
             state.Abort(message) ->
               h.div([a.class("bg-red-300 p-10")], [text(message)])
-            _ -> element.none()
+            _ -> none()
           },
         ],
       )
@@ -126,46 +133,12 @@ fn logs1(logs) {
   )
 }
 
-const code = "let x = 1
-let y = 2
-let z = 3
-let http = std.http
-let set_username = (user_id, name) -> {
-  let request = http.get()
-  perform Fetch(request)
-}
-set_username(\"123124248p574975345\", \"Bob\")"
-
-fn sections() {
-  [
-    #(
-      h.p([], [text("whats the point")]),
-      "let question = \"What's your name?\"
-let run = (_) -> {
-  let response = perform Ask(question)
-  perform Log(\"Hello\")
-}
-",
-    ),
-    #(
-      element.fragment([
-        h.h2([a.class("text-xl")], [text("Handling an effect")]),
-        h.div([a.class("")], [
-          text(
-            "Lorem ipsum, dolor sit amet consectetur adipisicing elit. Totam quae voluptatum animi fuga placeat reprehenderit, quisquam mollitia exercitationem inventore corrupti numquam tempora assumenda eligendi impedit accusamus quidem labore voluptatem saepe?",
-          ),
-        ]),
-      ]),
-      code,
-    ),
-  ]
-}
-
 pub fn content(state) {
+  let state.State(sections: sections, ..) = state
   h.div([a.class("relative vstack")], [
     h.div([a.class("cover expand")], [
       h.h1([a.class("p-4 text-6xl")], [text("Eyg")]),
-      h.div([a.class("")], list.map(sections(), section)),
+      h.div([a.class("")], iterate(sections, section)),
     ]),
     // bad things with min h 100% in relative maybe fixed is better than sticky
     // sticky works as long as there is content
@@ -175,7 +148,21 @@ pub fn content(state) {
   ])
 }
 
-fn section(section) {
+fn do_iterate(remaining, func, previous, acc) {
+  case remaining {
+    [] -> list.reverse(acc)
+    [item, ..remaining] -> {
+      let acc = [func(previous, item, remaining), ..acc]
+      do_iterate(remaining, func, [item,..previous],acc)
+    }
+  }
+}
+
+fn iterate(items, func) {
+  do_iterate(items, func, [], [])
+}
+
+fn section(previous, section, post) {
   let #(context, code) = section
   h.div([a.class("")], [
     h.div(
@@ -193,17 +180,103 @@ fn section(section) {
         h.div([a.class("my-4 bg-white bg-opacity-70 rounded")], [context]),
         h.div([], []),
         h.div([], []),
-        h.pre(
-          [
-            a.class("my-4 p-2 bg-gray-200 rounded bg-opacity-70"),
-            event.on_click(state.Run(code)),
-          ],
-          highlighted(code),
-        ),
+        editor(code, fn(new) {
+          let #(content, _code) = section
+          let section = #(content, new)
+          state.EditCode(listx.gather_around(previous, section, post))
+        }),
         h.div([], []),
       ],
     ),
   ])
+}
+
+fn editor(code, on_update) {
+  h.div([a.class("my-4 p-2 bg-gray-200 rounded bg-opacity-70")], [
+    text_input(code, on_update),
+  ])
+}
+
+const monospace = "ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,\"Liberation Mono\",\"Courier New\",monospace"
+
+const pre_id = "highlighting-underlay"
+
+fn text_input(code, on_update) {
+  h.div(
+    [
+      a.style([
+        #("position", "relative"),
+        #("font-family", monospace),
+        #("width", "100%"),
+        #("height", "100%"),
+        #("overflow", "hidden"),
+      ]),
+    ],
+    [
+      h.pre(
+        [
+          a.id(pre_id),
+          a.style([
+            #("position", "absolute"),
+            #("top", "0"),
+            #("bottom", "0"),
+            #("left", "0"),
+            #("right", "0"),
+            #("margin", "0 !important"),
+            #("white-space", "pre-wrap"),
+            #("word-wrap", "break-word"),
+            #("overflow", "auto"),
+          ]),
+        ],
+        highlighted(code),
+      ),
+      h.textarea(
+        [
+          a.style([
+            #("display", "block"),
+            // z-index can cause the highlight to be lot behind other containers. 
+            // make this position relative so stacked with absolute elements but do not move.
+            #("position", "relative"),
+            #("width", "100%"),
+            #("height", "100%"),
+            #("padding", "0 !important"),
+            #("margin", "0 !important"),
+            #("border", "0"),
+            #("color", "transparent"),
+            #("font-size", "1em"),
+            #("background-color", "transparent"),
+            #("outline", "2px solid transparent"),
+            #("outline-offset", "2px"),
+            #("caret-color", "black"),
+          ]),
+          a.attribute("spellcheck", "false"),
+          a.rows(text.line_count(code)),
+          e.on_input(on_update),
+          // stops navigation
+          e.on("keydown", fn(event) {
+            e.stop_propagation(event)
+            Error([])
+          }),
+          e.on("scroll", fn(event) {
+            let target =
+              event.target(dynamic.unsafe_coerce(dynamic.from(event)))
+            window.request_animation_frame(fn(_) {
+              let target = dynamic.unsafe_coerce(target)
+              let scroll_top = element.scroll_top(target)
+              let scroll_left = element.scroll_left(target)
+              let assert Ok(pre) = document.query_selector("#" <> pre_id)
+              element.set_scroll_top(pre, scroll_top)
+              element.set_scroll_left(pre, scroll_left)
+              Nil
+            })
+
+            Error([])
+          }),
+        ],
+        code,
+      ),
+    ],
+  )
 }
 
 fn errors(code) {

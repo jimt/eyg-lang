@@ -6,27 +6,32 @@ import gleam/dynamic
 import gleam/io
 import gleam/option.{type Option, None, Some}
 import harness/stdlib
+import intro/content
+import lustre/element.{type Element}
 
 import lustre/effect
 
 pub type State {
-  State(running: Option(Runner))
+  State(sections: List(#(Element(Message), String)), running: Option(Runner))
 }
 
-const effects = [Log("Hello, World!"), Random(5), Log("Hello, World!")]
-
 pub fn init(_) {
-  let state = State(Some(Runner(Abort("something went wrong"), effects)))
+  let state = State(content.sections(), None)
   #(state, effect.none())
 }
 
 pub type Message {
+  EditCode(sections: List(#(Element(Message), String)))
   Run(String)
   CloseRunner
 }
 
 pub fn update(state, message) {
   case message {
+    EditCode(sections) -> {
+      let state = State(..state, sections: sections)
+      #(state, effect.none())
+    }
     Run(code) -> {
       let code = code <> "\r\nrun"
       // There should be a parsed version which is the only time you are allowd to click on it.
@@ -49,7 +54,7 @@ pub fn update(state, message) {
       }
     }
     CloseRunner -> {
-      let state = State(running: None)
+      let state = State(..state, running: None)
       #(state, effect.none())
     }
   }

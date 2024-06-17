@@ -1,3 +1,5 @@
+import eyg/parse/lexer
+import eyg/text/highlight
 import gleam/list
 import lustre/attribute as a
 import lustre/element.{text}
@@ -129,11 +131,21 @@ pub fn runner(state) {
   )
 }
 
+const code = "let x = 1
+let y = 2
+let z = 3
+let http = std.http
+let set_username = (user_id, name) -> {
+  let request = http.get()
+  perform Fetch(request)
+}
+set_username(\"123124248p574975345\", \"Bob\")"
+
 pub fn content(state) {
   h.div([a.class("relative")], [
     h.div([a.class("cover expand")], [
       h.h1([a.class("p-4 text-6xl")], [text("Eyg")]),
-      h.div([a.class("")], list.repeat(section(), 10)),
+      h.div([a.class("")], list.repeat(section(code), 10)),
     ]),
     h.footer([a.class("cover sticky bottom-0 bg-gray-900 text-white")], [
       text("hi"),
@@ -141,7 +153,7 @@ pub fn content(state) {
   ])
 }
 
-fn section() {
+fn section(code) {
   h.div([a.class("")], [
     //     h.h2([a.class("max-w-2xl mx-auto p-4 text-xl")], [
     //       text("Handling an effect"),
@@ -256,19 +268,7 @@ fn section() {
         //   [text("Fetch")],
         // ),
         ]),
-        h.pre([a.class("expand p-2 bg-white bg-opacity-70")], [
-          text(
-            "let x = 1
-let y = 2
-let z = 3
-let http = std.http
-let set_username = (user_id, name) -> {
-  let request = http.get()
-  perform Fetch(request)
-}
-set_username(\"123124248p574975345\", \"Bob\")",
-          ),
-        ]),
+        h.pre([a.class("expand p-2 bg-white bg-opacity-70")], [text(code)]),
         h.div([a.class("ml-2 cover italic py-2")], [
           //           h.pre([], [
         //             text(
@@ -283,7 +283,28 @@ set_username(\"123124248p574975345\", \"Bob\")",
         //             ),
         //           ]),
         ]),
+        h.div([], []),
+        h.pre([], highlighted(code)),
+        h.div([], []),
       ],
     ),
   ])
+}
+
+import gleam/pair
+
+fn highlighted(code) {
+  code
+  |> lexer.lex()
+  |> list.map(pair.first)
+  |> highlight.highlight(highlight_token)
+}
+
+fn highlight_token(token) {
+  let #(classification, content) = token
+  let class = case classification {
+    highlight.Text -> "text-red-500"
+    _ -> "text-green-500"
+  }
+  h.span([a.class(class)], [text(content)])
 }

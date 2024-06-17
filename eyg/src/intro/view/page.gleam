@@ -97,7 +97,7 @@ pub fn runner(state) {
             // text("Running ..."),
             h.button([e.on_click(state.CloseRunner)], [text("close")]),
           ]),
-          logs1(effects),
+          logs1(list.reverse(effects)),
           case handle {
             state.Abort(message) ->
               h.div([a.class("bg-red-300 p-10")], [text(message)])
@@ -110,7 +110,11 @@ pub fn runner(state) {
                 ),
               ])
             state.Waiting -> text("waiting")
-            state.Done(value) -> text(v.debug(value))
+            state.Done(value) ->
+              h.div([a.class("border-4 border-green-500 px-6 py-2")], [
+                h.div([], [text("Done")]),
+                h.div([], [text(v.debug(value))]),
+              ])
             // _ -> text()
           },
         ],

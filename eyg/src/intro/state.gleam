@@ -41,35 +41,47 @@ pub fn update(state, message) {
       let env = dynamic.unsafe_coerce(dynamic.from(stdlib.env()))
       let assert Ok(f) = r.execute(source, env, handlers)
       let f = dynamic.unsafe_coerce(dynamic.from(f))
-      let run = case r.resume(f, [v.unit], stdlib.env(), dict.new()) {
-        Error(#(reason, meta, env, k)) ->
-          case reason {
-            break.UnhandledEffect(label, lift) ->
-              case label {
-                "Ask" -> {
-                  let assert Ok(question) = cast.as_string(lift)
-                  Runner(Asking(question, env, k), [])
-                }
-                other -> Runner(Abort(break.reason_to_string(reason)), [])
-              }
-            reason -> Runner(Abort(break.reason_to_string(reason)), [])
-          }
-        Ok(value) -> Runner(Done(dynamic.unsafe_coerce(dynamic.from(f))), [])
-      }
+      let run = handle_next(r.resume(f, [v.unit], stdlib.env(), dict.new()), [])
       let state = State(..state, running: Some(run))
       #(state, effect.none())
     }
     Resume(value, env, k, effects) -> {
       // r.resume(k, [value], env, dict.new())
       let value = dynamic.unsafe_coerce(dynamic.from(value))
-      r.loop(istate.step(istate.V(value), env, k))
-      |> io.debug()
-      todo as "resummsdfdf"
+      let result = r.loop(istate.step(istate.V(value), env, k))
+      let run = handle_next(result, effects)
+      let state = State(..state, running: Some(run))
+      #(state, effect.none())
     }
     CloseRunner -> {
       let state = State(..state, running: None)
       #(state, effect.none())
     }
+  }
+}
+
+fn handle_next(result, effects) {
+  case result {
+    Error(#(reason, meta, env, k)) ->
+      case reason {
+        break.UnhandledEffect(label, lift) ->
+          case label {
+            "Ask" -> {
+              let assert Ok(question) = cast.as_string(lift)
+              Runner(Asking(question, env, k), effects)
+            }
+            "Log" -> {
+              let assert Ok(message) = cast.as_string(lift)
+              let effects = [Log(message), ..effects]
+              r.loop(istate.step(istate.V(v.unit), env, k))
+              |> handle_next(effects)
+            }
+            other -> Runner(Abort(break.reason_to_string(reason)), effects)
+          }
+        reason -> Runner(Abort(break.reason_to_string(reason)), effects)
+      }
+    Ok(value) ->
+      Runner(Done(dynamic.unsafe_coerce(dynamic.from(value))), effects)
   }
 }
 

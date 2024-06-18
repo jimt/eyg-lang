@@ -95,8 +95,9 @@ pub fn runner(state) {
       h.div(
         [
           a.class(
-            "bg-white bottom-8 fixed right-4 rounded top-4 w-1/3 shadow-xl",
+            "bg-white bottom-8 fixed right-4 rounded top-4 w-1/3 shadow-xl border",
           ),
+          a.style([#("left", "96ch")]),
         ],
         [
           h.h1([a.class("text-right")], [
@@ -193,6 +194,24 @@ pub fn content(state) {
   h.div([a.class("relative vstack")], [
     h.div([a.class("cover expand")], [
       h.h1([a.class("p-4 text-6xl")], [text("Eyg")]),
+      // fixed doesnt respect the colum 
+      // whole extra grid doesn't work
+      // h.div([a.class("")], [
+      //   h.div(
+      //     [
+      //       a.class("mx-auto fixed top-0 left-0 right-0 bottom-0"),
+      //       a.style([
+      //         #("display", "grid"),
+      //         #("grid-template-columns", "8em 80ch 1fr"),
+      //       ]),
+      //     ],
+      //     [
+      //       h.div([], [text("1")]),
+      //       h.div([], [text("2")]),
+      //       h.div([], [h.div([a.class("h-full bg-red-200")], [runner(state)])]),
+      //     ],
+      //   ),
+      // ]),
       h.div([a.class("")], iterate(sections, [], section)),
     ]),
     // bad things with min h 100% in relative maybe fixed is better than sticky

@@ -92,6 +92,7 @@ fn handle_next(result, effects) {
 
 pub type Effect {
   Log(String)
+  Asked(question: String, answer: String)
   Random(Int)
 }
 

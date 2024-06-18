@@ -105,7 +105,14 @@ pub fn runner(state) {
               h.div([a.class("border-4 border-green-500 px-6 py-2")], [
                 h.div([], [text(question)]),
                 h.form(
-                  [e.on_submit(state.Resume(v.Str(value), env, k, effects))],
+                  [
+                    e.on_submit(
+                      state.Resume(v.Str(value), env, k, [
+                        state.Asked(question, value),
+                        ..effects
+                      ]),
+                    ),
+                  ],
                   [
                     h.input([
                       a.class("border rounded"),
@@ -148,6 +155,12 @@ fn logs1(logs) {
             text("Log"),
           ]),
           h.span([a.class("px-1")], [text(message)]),
+        ]
+        state.Asked(question, answer) -> [
+          h.span([a.class("bg-gray-700 text-white text-right px-2")], [
+            text("Ask"),
+          ]),
+          h.span([a.class("px-1")], [text(answer)]),
         ]
         state.Random(value) -> [
           h.span([a.class("bg-gray-700 text-white text-right px-2")], [

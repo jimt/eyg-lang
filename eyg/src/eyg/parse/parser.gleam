@@ -117,7 +117,7 @@ pub fn block(tokens) {
         _ -> fail(rest)
       })
       use #(value, rest) <- try(expression(rest))
-      case expression(rest) {
+      case block(rest) {
         Ok(#(then, rest)) -> {
           let #(_, #(_start, end)) = then
           let span = #(start, end)
@@ -133,7 +133,7 @@ pub fn block(tokens) {
         Error(UnexpectEnd) -> {
           io.debug(value)
           let span = #(start, start)
-          let then = #(e.Vacant("__Block__"), #(0,0))
+          let then = #(e.Vacant("__Block__"), #(0, 0))
           let exp = case pattern {
             Assign(label) -> #(e.Let(label, value, then), span)
             Destructure(matches) -> #(

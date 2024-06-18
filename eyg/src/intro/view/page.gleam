@@ -1,12 +1,17 @@
+import eyg/analysis/inference/levels_j/contextual as j
+import eyg/analysis/type_/binding
+import eyg/analysis/type_/isomorphic as t
+import eyg/parse
 import eyg/parse/lexer
 import eyg/runtime/value as v
 import eyg/text/highlight
 import eyg/text/text
+import eygir/annotated
 import gleam/dynamic
+import gleam/io
 import gleam/list
 import gleam/listx
 import gleam/option.{None, Some}
-
 import intro/state
 import lustre/attribute as a
 import lustre/element.{fragment, none, text} as _
@@ -204,6 +209,12 @@ fn iterate(items, func) {
 
 fn section(previous, section, post) {
   let #(context, code) = section
+  let on_update = fn(new) {
+    let #(content, _code) = section
+    let section = #(content, new)
+    state.EditCode(listx.gather_around(previous, section, post))
+  }
+
   h.div([a.class("")], [
     h.div(
       [
@@ -220,31 +231,58 @@ fn section(previous, section, post) {
         h.div([a.class("my-4 bg-white bg-opacity-70 rounded")], [context]),
         h.div([], []),
         h.div([], []),
-        editor(code, fn(new) {
-          let #(content, _code) = section
-          let section = #(content, new)
-          state.EditCode(listx.gather_around(previous, section, post))
-        }),
+        h.div([a.class("my-4 bg-gray-200 rounded bg-opacity-70")], [
+          h.div([a.class("p-2")], [text_input(code, on_update)]),
+          case parse.block_from_string(code) {
+            Ok(#(code, _)) -> {
+              let previous_assigns =
+                // previous in reverse order and parsed block
+                list.filter_map(previous, fn(section) {
+                  let #(_, code) = section
+                  case parse.block_from_string(code) {
+                    Ok(#(#(assigns, _final), _remaining_tokens)) -> Ok(assigns)
+                    _ -> Error(Nil)
+                  }
+                })
+                |> list.flatten
+              let #(new_assigns, final) = code
+              let assigns = list.append(new_assigns, previous_assigns)
+              let exp = case final, assigns {
+                None, [#(label, _), ..] -> #(annotated.Variable(label), #(0, 0))
+                Some(other), _ -> #(other, #(0, 0))
+                _, _ -> panic as "deeps problems in flatten"
+              }
+              io.debug(#("ssss", code))
+              h.div([a.class("text-right")], [
+                h.button([e.on_click(state.Run(rollup_block(exp, assigns)))], [
+                  text("run"),
+                ]),
+              ])
+            }
+            Error(reason) ->
+              h.div(
+                [a.class("px-2 -mt-1 py-1 rounded bg-pink-500 text-white")],
+                [text(string.inspect(reason))],
+              )
+          },
+        ]),
         h.div([], []),
       ],
     ),
   ])
 }
 
+// expects reversed
+fn rollup_block(exp, assigns) {
+  case assigns {
+    [] -> exp
+    [#(label, value), ..assigns] ->
+      rollup_block(#(annotated.Let(label, value, exp), #(0, 0)), assigns)
+  }
+}
+
 fn editor(code, on_update) {
-  h.div([a.class("my-4 bg-gray-200 rounded bg-opacity-70")], [
-    h.div([a.class("p-2")], [text_input(code, on_update)]),
-    case parse.block_from_string(code) {
-      Ok(#(code, _)) ->
-        h.div([a.class("text-right")], [
-          h.button([e.on_click(state.Run(code))], [text("run")]),
-        ])
-      Error(reason) ->
-        h.div([a.class("px-2 -mt-1 py-1 rounded bg-pink-500 text-white")], [
-          text(string.inspect(reason)),
-        ])
-    },
-  ])
+  todo
 }
 
 const monospace = "ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,\"Liberation Mono\",\"Courier New\",monospace"
@@ -360,12 +398,6 @@ fn highlight_token(token) {
   }
   h.span([a.class(class)], [text(content)])
 }
-
-import eyg/analysis/inference/levels_j/contextual as j
-import eyg/analysis/type_/binding
-import eyg/analysis/type_/isomorphic as t
-import eyg/parse
-import eygir/annotated
 
 pub fn information(source) {
   case parse.from_string(source) {

@@ -13,6 +13,7 @@ import harness/stdlib
 import intro/content
 import lustre/effect
 import lustre/element.{type Element}
+import plinth/javascript/global
 
 // circular dependency on content potential if init calls content and content needs sections
 // init should take some value
@@ -33,6 +34,7 @@ pub type Message {
   NewRunner(Runner)
   Run(#(Expression(#(Int, Int)), #(Int, Int)))
   Resume(v.Value(Nil, Nil), Env(Nil), Stack(Nil), List(Effect))
+  TimerComplete
   CloseRunner
 }
 
@@ -49,26 +51,36 @@ pub fn update(state, message) {
     Run(source) -> {
       let handlers = dict.new()
       let env = dynamic.unsafe_coerce(dynamic.from(stdlib.env()))
-      let run = case r.execute(source, env, handlers) {
+      let #(run, effect) = case r.execute(source, env, handlers) {
         Ok(f) -> {
           let f = dynamic.unsafe_coerce(dynamic.from(f))
-          let run =
-            handle_next(r.resume(f, [v.unit], stdlib.env(), dict.new()), [])
+          handle_next(r.resume(f, [v.unit], stdlib.env(), dict.new()), [])
         }
         Error(#(reason, meta, env, k)) -> {
-          Runner(Abort(break.reason_to_string(reason)), [])
+          #(Runner(Abort(break.reason_to_string(reason)), []), effect.none())
         }
       }
       let state = State(..state, running: Some(run))
-      #(state, effect.none())
+      #(state, effect)
     }
     Resume(value, env, k, effects) -> {
       // r.resume(k, [value], env, dict.new())
       let value = dynamic.unsafe_coerce(dynamic.from(value))
       let result = r.loop(istate.step(istate.V(value), env, k))
-      let run = handle_next(result, effects)
+      let #(run, effect) = handle_next(result, effects)
       let state = State(..state, running: Some(run))
-      #(state, effect.none())
+      #(state, effect)
+    }
+    TimerComplete -> {
+      let State(sections, running) = state
+      let assert Some(Runner(Waiting(remaining, env, k), effects)) = running
+      let value = dynamic.unsafe_coerce(dynamic.from(v.unit))
+      let result = r.loop(istate.step(istate.V(value), env, k))
+      let effects = [Waited(remaining), ..effects]
+      let #(run, effect) = handle_next(result, effects)
+
+      let state = State(..state, running: Some(run))
+      #(state, effect)
     }
     CloseRunner -> {
       let state = State(..state, running: None)
@@ -85,7 +97,7 @@ fn handle_next(result, effects) {
           case label {
             "Ask" -> {
               let assert Ok(question) = cast.as_string(lift)
-              Runner(Asking(question, "", env, k), effects)
+              #(Runner(Asking(question, "", env, k), effects), effect.none())
             }
             "Log" -> {
               let assert Ok(message) = cast.as_string(lift)
@@ -93,24 +105,47 @@ fn handle_next(result, effects) {
               r.loop(istate.step(istate.V(v.unit), env, k))
               |> handle_next(effects)
             }
-            other -> Runner(Abort(break.reason_to_string(reason)), effects)
+            "Wait" -> {
+              let assert Ok(remaining) = cast.as_integer(lift)
+              #(
+                Runner(Waiting(remaining, env, k), effects),
+                effect.from(fn(d) {
+                  global.set_timeout(remaining, fn() {
+                    d(TimerComplete)
+                    Nil
+                  })
+                  Nil
+                }),
+              )
+            }
+
+            other -> #(
+              Runner(Abort(break.reason_to_string(reason)), effects),
+              effect.none(),
+            )
           }
-        reason -> Runner(Abort(break.reason_to_string(reason)), effects)
+        reason -> #(
+          Runner(Abort(break.reason_to_string(reason)), effects),
+          effect.none(),
+        )
       }
-    Ok(value) ->
-      Runner(Done(dynamic.unsafe_coerce(dynamic.from(value))), effects)
+    Ok(value) -> #(
+      Runner(Done(dynamic.unsafe_coerce(dynamic.from(value))), effects),
+      effect.none(),
+    )
   }
 }
 
 pub type Effect {
   Log(String)
   Asked(question: String, answer: String)
+  Waited(Int)
   Random(Int)
 }
 
 pub type Handle {
   Abort(String)
-  Waiting
+  Waiting(remaining: Int, Env(Nil), Stack(Nil))
   Asking(question: String, value: String, Env(Nil), Stack(Nil))
   Done(v.Value(Nil, Nil))
 }

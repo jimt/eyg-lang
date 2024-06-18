@@ -8,6 +8,7 @@ import eyg/text/highlight
 import eyg/text/text
 import eygir/annotated
 import gleam/dynamic
+import gleam/int
 import gleam/io
 import gleam/list
 import gleam/listx
@@ -132,7 +133,10 @@ pub fn runner(state) {
                   ],
                 ),
               ])
-            state.Waiting -> text("waiting")
+            state.Waiting(remaining, _, _) ->
+              h.div([a.class("border-4 border-blue-500 px-6 py-2")], [
+                h.div([], [text("Waiting " <> int.to_string(remaining))]),
+              ])
             state.Done(value) ->
               h.div([a.class("border-4 border-green-500 px-6 py-2")], [
                 h.div([], [text("Done")]),
@@ -160,6 +164,12 @@ fn logs1(logs) {
             text("Log"),
           ]),
           h.span([a.class("px-1")], [text(message)]),
+        ]
+        state.Waited(time) -> [
+          h.span([a.class("bg-blue-700 text-white text-right px-2")], [
+            text("Wait"),
+          ]),
+          h.span([a.class("px-1")], [text(int.to_string(time))]),
         ]
         state.Asked(question, answer) -> [
           h.span([a.class("bg-gray-700 text-white text-right px-2")], [

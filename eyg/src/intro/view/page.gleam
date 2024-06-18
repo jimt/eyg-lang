@@ -222,13 +222,23 @@ fn section(previous, section, post, state) {
   let #(can_run, state) = case parse.block_from_string(code) {
     Ok(#(#(assigns, final), _remaining_tokens)) -> {
       let assigns = list.append(assigns, state)
-      let exp = case final, assigns {
-        None, [#(label, _, span), ..] -> #(annotated.Variable(label), #(0, 0))
-        None, [] -> #(annotated.Empty, #(0, 0))
-        Some(other), _ -> other
+      let #(exp, target) = case final, assigns {
+        None, [#(label, _, span), ..] -> #(
+          #(annotated.Variable(label), #(0, 0)),
+          Some(span),
+        )
+        None, [] -> #(#(annotated.Empty, #(0, 0)), None)
+        Some(other), _ -> #(other, None)
       }
+      let target =
+        option.map(target, fn(span) {
+          let #(start, _) = span
+          text.lines_positions(code)
+          |> list.take_while(fn(x) { x < start })
+          |> list.length
+        })
       let exp = rollup_block(exp, assigns)
-      #(Ok(exp), assigns)
+      #(Ok(#(exp, target)), assigns)
     }
     Error(reason) -> #(Error(reason), state)
   }
@@ -251,13 +261,26 @@ fn render_section(context, code, on_update, can_run) {
         ]),
         h.div([a.class("my-4 bg-white bg-opacity-70 rounded")], [context]),
         h.div([], []),
-        h.div([], []),
+        h.div([a.class("my-4 p-2 text-right")], case can_run {
+          Ok(#(exp, Some(count))) ->
+            list.repeat(h.br([]), count)
+            |> list.append([
+              h.button(
+                [
+                  a.class("bg-red-400 text-white px-2 -mr-2 rounded-l"),
+                  e.on_click(state.Run(exp)),
+                ],
+                [text("Run >")],
+              ),
+            ])
+          _ -> []
+        }),
         h.div([a.class("my-4 bg-gray-200 rounded bg-opacity-70")], [
           h.div([a.class("p-2")], [text_input(code, on_update)]),
           case can_run {
-            Ok(exp) -> {
+            Ok(_) -> {
               h.div([a.class("text-right")], [
-                h.button([e.on_click(state.Run(exp))], [text("run")]),
+                // h.button([e.on_click(state.Run(exp))], [text("run")]),
               ])
             }
             Error(reason) ->

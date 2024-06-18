@@ -7,6 +7,7 @@ import eyg/parse/parser
 import eyg/runtime/cast
 import eyg/runtime/interpreter/live
 import eyg/runtime/value as v
+import eyg/text/text
 import eygir/annotated
 import gleam/bit_array
 import gleam/dict
@@ -39,35 +40,6 @@ fn parse(src) {
   src
   |> lexer.lex()
   |> parser.parse()
-}
-
-pub fn lines(source) {
-  list.reverse(do_lines(source, 0, 0, []))
-}
-
-fn do_lines(source, offset, start, acc) {
-  case source {
-    "\r\n" <> rest -> {
-      let offset = offset + 2
-      do_lines(rest, offset, offset, [start, ..acc])
-    }
-    "\n" <> rest -> {
-      let offset = offset + 1
-      do_lines(rest, offset, offset, [start, ..acc])
-    }
-    _ ->
-      case string.pop_grapheme(source) {
-        Ok(#(g, rest)) -> {
-          let offset = offset + byte_size(g)
-          do_lines(rest, offset, start, acc)
-        }
-        Error(Nil) -> [start, ..acc]
-      }
-  }
-}
-
-fn byte_size(string: String) -> Int {
-  bit_array.byte_size(<<string:utf8>>)
 }
 
 pub fn apply_span(lines, span, thing, acc) {
@@ -106,7 +78,7 @@ pub fn highlights(state, spans, acc) {
   let with_effects =
     list.fold(
       effect_lines(spans, acc),
-      list.map(lines(source(state)), fn(x) { #(x, []) }),
+      list.map(text.lines_positions(source(state)), fn(x) { #(x, []) }),
       fn(lines, sp) { apply_span(lines, sp.0, sp.1, []) },
     )
 
@@ -172,7 +144,8 @@ pub fn interpret(state) {
   case parse(source(state)) {
     Ok(tree) -> {
       let #(r, assignments) = live.execute(tree, h)
-      let lines = list.map(lines(source(state)), fn(x) { #(x, []) })
+      let lines =
+        list.map(text.lines_positions(source(state)), fn(x) { #(x, []) })
       let output =
         list.fold(assignments, lines, fn(lines, sp) {
           apply_span(lines, sp.2, Ok(#(sp.0, sp.1)), [])

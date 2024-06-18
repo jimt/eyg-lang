@@ -14,8 +14,13 @@ import intro/content
 import lustre/effect
 import lustre/element.{type Element}
 
+// circular dependency on content potential if init calls content and content needs sections
+// init should take some value
+pub type Section =
+  #(Element(Message), String)
+
 pub type State {
-  State(sections: List(#(Element(Message), String)), running: Option(Runner))
+  State(sections: List(Section), running: Option(Runner))
 }
 
 pub fn init(_) {

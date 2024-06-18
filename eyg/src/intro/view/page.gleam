@@ -183,7 +183,7 @@ pub fn content(state) {
   h.div([a.class("relative vstack")], [
     h.div([a.class("cover expand")], [
       h.h1([a.class("p-4 text-6xl")], [text("Eyg")]),
-      h.div([a.class("")], iterate(sections, section)),
+      h.div([a.class("")], iterate(sections, [], section)),
     ]),
     // bad things with min h 100% in relative maybe fixed is better than sticky
     // sticky works as long as there is content
@@ -193,28 +193,49 @@ pub fn content(state) {
   ])
 }
 
-fn do_iterate(remaining, func, previous, acc) {
+fn do_iterate(remaining, func, previous, state, acc) {
   case remaining {
     [] -> list.reverse(acc)
     [item, ..remaining] -> {
-      let acc = [func(previous, item, remaining), ..acc]
-      do_iterate(remaining, func, [item, ..previous], acc)
+      let #(element, state) = func(previous, item, remaining, state)
+      let acc = [element, ..acc]
+      do_iterate(remaining, func, [item, ..previous], state, acc)
     }
   }
 }
 
-fn iterate(items, func) {
-  do_iterate(items, func, [], [])
+fn iterate(items, initial, func) {
+  do_iterate(items, func, [], initial, [])
 }
 
-fn section(previous, section, post) {
+fn section(previous, section, post, state) {
   let #(context, code) = section
+
   let on_update = fn(new) {
     let #(content, _code) = section
     let section = #(content, new)
     state.EditCode(listx.gather_around(previous, section, post))
   }
 
+  // state = previous assignments
+
+  let #(can_run, state) = case parse.block_from_string(code) {
+    Ok(#(#(assigns, final), _remaining_tokens)) -> {
+      let assigns = list.append(assigns, state)
+      let exp = case final, assigns {
+        None, [#(label, _, span), ..] -> #(annotated.Variable(label), #(0, 0))
+        None, [] -> #(annotated.Empty, #(0, 0))
+        Some(other), _ -> other
+      }
+      let exp = rollup_block(exp, assigns)
+      #(Ok(exp), assigns)
+    }
+    Error(reason) -> #(Error(reason), state)
+  }
+  #(render_section(context, code, on_update, can_run), state)
+}
+
+fn render_section(context, code, on_update, can_run) {
   h.div([a.class("")], [
     h.div(
       [
@@ -233,30 +254,10 @@ fn section(previous, section, post) {
         h.div([], []),
         h.div([a.class("my-4 bg-gray-200 rounded bg-opacity-70")], [
           h.div([a.class("p-2")], [text_input(code, on_update)]),
-          case parse.block_from_string(code) {
-            Ok(#(code, _)) -> {
-              let previous_assigns =
-                // previous in reverse order and parsed block
-                list.filter_map(previous, fn(section) {
-                  let #(_, code) = section
-                  case parse.block_from_string(code) {
-                    Ok(#(#(assigns, _final), _remaining_tokens)) -> Ok(assigns)
-                    _ -> Error(Nil)
-                  }
-                })
-                |> list.flatten
-              let #(new_assigns, final) = code
-              let assigns = list.append(new_assigns, previous_assigns)
-              let exp = case final, assigns {
-                None, [#(label, _), ..] -> #(annotated.Variable(label), #(0, 0))
-                Some(other), _ -> #(other, #(0, 0))
-                _, _ -> panic as "deeps problems in flatten"
-              }
-              io.debug(#("ssss", code))
+          case can_run {
+            Ok(exp) -> {
               h.div([a.class("text-right")], [
-                h.button([e.on_click(state.Run(rollup_block(exp, assigns)))], [
-                  text("run"),
-                ]),
+                h.button([e.on_click(state.Run(exp))], [text("run")]),
               ])
             }
             Error(reason) ->
@@ -276,8 +277,8 @@ fn section(previous, section, post) {
 fn rollup_block(exp, assigns) {
   case assigns {
     [] -> exp
-    [#(label, value), ..assigns] ->
-      rollup_block(#(annotated.Let(label, value, exp), #(0, 0)), assigns)
+    [#(label, value, span), ..assigns] ->
+      rollup_block(#(annotated.Let(label, value, exp), span), assigns)
   }
 }
 

@@ -28,8 +28,8 @@ pub fn block_from_string(src) {
 fn do_gather(exp, acc) {
   let #(exp, span) = exp
   case exp {
-    e.Let(label, value, then) -> do_gather(then, [#(label, value), ..acc])
+    e.Let(label, value, then) -> do_gather(then, [#(label, value, span), ..acc])
     e.Vacant(_) -> #(acc, None)
-    _ -> #(acc, Some(exp))
+    _ -> #(acc, Some(#(exp, span)))
   }
 }

@@ -20,8 +20,7 @@ pub fn sections() {
 let run = (_) -> {
   let answer = perform Ask(question)
   perform Log(!string_append(\"Hello \", answer))
-}
-run",
+}",
     ),
     #(
       fragment([

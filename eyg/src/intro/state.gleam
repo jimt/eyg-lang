@@ -49,9 +49,16 @@ pub fn update(state, message) {
     Run(source) -> {
       let handlers = dict.new()
       let env = dynamic.unsafe_coerce(dynamic.from(stdlib.env()))
-      let assert Ok(f) = r.execute(source, env, handlers)
-      let f = dynamic.unsafe_coerce(dynamic.from(f))
-      let run = handle_next(r.resume(f, [v.unit], stdlib.env(), dict.new()), [])
+      let run = case r.execute(source, env, handlers) {
+        Ok(f) -> {
+          let f = dynamic.unsafe_coerce(dynamic.from(f))
+          let run =
+            handle_next(r.resume(f, [v.unit], stdlib.env(), dict.new()), [])
+        }
+        Error(#(reason, meta, env, k)) -> {
+          Runner(Abort(break.reason_to_string(reason)), [])
+        }
+      }
       let state = State(..state, running: Some(run))
       #(state, effect.none())
     }

@@ -88,7 +88,7 @@ pub fn render(state) {
 }
 
 pub fn runner(state) {
-  let state.State(sections, runner) = state
+  let state.State(sections: sections, running: runner, ..) = state
   case runner {
     None -> none()
     Some(state.Runner(handle, effects)) ->
@@ -133,6 +133,10 @@ pub fn runner(state) {
                     ]),
                   ],
                 ),
+              ])
+            state.Loading(reference, _, _) ->
+              h.div([a.class("border-4 border-gray-500 px-6 py-2")], [
+                h.div([], [text("Loading: #" <> reference)]),
               ])
             state.Waiting(remaining, _, _) ->
               h.div([a.class("border-4 border-blue-500 px-6 py-2")], [
@@ -443,9 +447,10 @@ fn highlight_token(token) {
     highlight.UpperText -> "text-blue-400"
     highlight.Number -> "text-indigo-400"
     highlight.String -> "text-green-500"
-    highlight.KeyWord -> "text-gray-600"
+    highlight.KeyWord -> "text-gray-700"
     highlight.Effect -> "text-yellow-500"
     highlight.Builtin -> "text-pink-400"
+    highlight.Reference -> "text-gray-400"
     highlight.Punctuation -> ""
     highlight.Unknown -> "text-red-500"
   }

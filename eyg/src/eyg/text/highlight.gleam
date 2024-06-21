@@ -9,6 +9,7 @@ pub type Category {
   KeyWord
   Effect
   Builtin
+  Reference
   Punctuation
   Unknown
 }
@@ -37,6 +38,7 @@ fn classify(token) {
     t.Minus -> Punctuation
     t.Bang -> Punctuation
     t.Bar -> Punctuation
+    t.Hash -> Reference
 
     t.LeftParen -> Punctuation
     t.RightParen -> Punctuation
@@ -68,6 +70,10 @@ fn do_highlight(tokens, class, buffer, acc) {
     }
     [t.Bang as k, t.Name(l), ..tokens] -> {
       let acc = [#(Builtin, t.to_string(k) <> l), ..push(class, buffer, acc)]
+      do_highlight(tokens, Text, "", acc)
+    }
+    [t.Hash as k, t.Name(l), ..tokens] -> {
+      let acc = [#(Reference, t.to_string(k) <> l), ..push(class, buffer, acc)]
       do_highlight(tokens, Text, "", acc)
     }
     [next, ..tokens] -> {

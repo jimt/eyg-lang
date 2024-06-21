@@ -31,7 +31,8 @@ let run = (_) -> {
           ),
         ]),
       ]),
-      "(_) -> { 
+      "let { string } = #standard_library
+let run = (_) -> { 
   let _ = perform Wait(5000)
   5 
 }",

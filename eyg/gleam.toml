@@ -18,7 +18,8 @@ simplifile = "~> 1.0"
 gleam_http = "~> 3.5"
 gleam_community_codec = {path= "../../codec"}
 midas = ">= 0.4.2 and < 1.0.0"
-
+# cant be loaded some issue with the node side of things
+# midas_run = {path= "../../mono-2024/midas_run"}
 
 [dev-dependencies]
 gleeunit = "~> 1.0"

@@ -29,7 +29,14 @@ fn build_intro() {
   let files = [#("/intro.js", <<script:utf8>>)]
   use index <- t.do(t.read("src/intro/index.html"))
   use style <- t.do(t.read("src/intro/index.css"))
-  t.done([#("/intro/index.html", index), #("/intro/index.css", style), ..files])
+  use stdlib <- t.do(t.read("saved/std.json"))
+
+  t.done([
+    #("/intro/index.html", index),
+    #("/intro/index.css", style),
+    #("/saved/std.json", stdlib),
+    ..files
+  ])
 }
 
 pub fn preview(args) {

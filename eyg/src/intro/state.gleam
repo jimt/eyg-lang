@@ -5,17 +5,21 @@ import eyg/runtime/interpreter/runner as r
 import eyg/runtime/interpreter/state.{type Env, type Stack} as istate
 import eyg/runtime/value as v
 import eygir/annotated.{type Expression}
+import eygir/decode
+import gleam/bit_array
 import gleam/dict.{type Dict}
-import gleam/dynamic
 import gleam/fetch
 import gleam/http/request
+import gleam/int
 import gleam/io
 import gleam/option.{type Option, None, Some}
+import gleam/result
 import gleam/uri
 import harness/stdlib
 import intro/content
 import lustre/effect
 import lustre/element.{type Element}
+import snag
 
 // import midas/browser
 import midas/task as t
@@ -38,7 +42,7 @@ pub type Handle {
   Loading(reference: String, Env(Nil), Stack(Nil))
   Waiting(remaining: Int, Env(Nil), Stack(Nil))
   Asking(question: String, value: String, Env(Nil), Stack(Nil))
-  Done(v.Value(Nil, Nil))
+  Done(Value)
 }
 
 pub type Runner {
@@ -47,7 +51,7 @@ pub type Runner {
 
 pub type State {
   State(
-    references: Dict(String, v.Value(Nil, Nil)),
+    references: Dict(String, Value),
     sections: List(Section),
     running: Option(Runner),
   )
@@ -62,9 +66,67 @@ pub type Message {
   EditCode(sections: List(#(Element(Message), String)))
   NewRunner(Runner)
   Run(#(Expression(#(Int, Int)), #(Int, Int)))
-  Resume(v.Value(Nil, Nil), Env(Nil), Stack(Nil), List(Effect))
+  Resume(Value, Env(Nil), Stack(Nil), List(Effect))
   TimerComplete
+  // execute after assumes boolean information probably should be list of args and/or reference to possible effects
+  LoadedReference(reference: String, value: Value, execute_after: Bool)
   CloseRunner
+}
+
+type Value =
+  v.Value(Nil, #(List(#(istate.Kontinue(Nil), Nil)), istate.Env(Nil)))
+
+// only two cases. eval is inline before calling no further handlers but will call
+fn eval(source: #(Expression(#(Int, Int)), #(Int, Int)), references) {
+  let source = annotated.map_annotation(source, fn(_) { Nil })
+  let handlers = dict.new()
+  let env = stdlib.env()
+  handle_eval(r.execute(source, env, handlers), references)
+}
+
+fn handle_eval(result, references) {
+  let #(run, effect) = case result {
+    Ok(f) -> {
+      handle_next(
+        r.resume(f, [v.unit], stdlib.env(), dict.new()),
+        [],
+        references,
+      )
+    }
+    Error(#(reason, meta, env, k)) -> {
+      case reason {
+        break.UndefinedVariable("#" <> reference) -> {
+          case dict.get(references, reference) {
+            Ok(value) ->
+              handle_eval(
+                r.loop(istate.step(istate.V(value), env, k)),
+                references,
+              )
+            Error(Nil) -> {
+              #(
+                Runner(Loading(reference, env, k), []),
+                effect.from(fn(d) {
+                  let task = do_load(reference)
+                  promise.map(browser_run(task), fn(result) {
+                    case result {
+                      Ok(value) -> {
+                        // need reference here to handle nested reference loading
+                        d(LoadedReference(reference, value, True))
+                      }
+                      Error(reason) -> io.println(snag.pretty_print(reason))
+                    }
+                  })
+
+                  Nil
+                }),
+              )
+            }
+          }
+        }
+        _ -> #(Runner(Abort(break.reason_to_string(reason)), []), effect.none())
+      }
+    }
+  }
 }
 
 pub fn update(state, message) {
@@ -79,48 +141,11 @@ pub fn update(state, message) {
       #(state, effect.none())
     }
     Run(source) -> {
-      let handlers = dict.new()
-      let env = dynamic.unsafe_coerce(dynamic.from(stdlib.env()))
-      let #(run, effect) = case r.execute(source, env, handlers) {
-        Ok(f) -> {
-          let f = dynamic.unsafe_coerce(dynamic.from(f))
-          handle_next(
-            r.resume(f, [v.unit], stdlib.env(), dict.new()),
-            [],
-            references,
-          )
-        }
-        Error(#(reason, meta, env, k)) -> {
-          case reason {
-            // TODO need to reuse the code here with handle_next BUT different effects
-            break.UndefinedVariable("#" <> reference) -> {
-              let env = dynamic.unsafe_coerce(dynamic.from(env))
-              let k = dynamic.unsafe_coerce(dynamic.from(k))
-              case dict.get(references, reference) {
-                Ok(value) -> todo as "return"
-                Error(Nil) -> #(
-                  Runner(Loading(reference, env, k), []),
-                  effect.from(fn(d) {
-                    let task = do_load(reference)
-                    browser_run(task)
-                    Nil
-                  }),
-                )
-              }
-            }
-            _ -> #(
-              Runner(Abort(break.reason_to_string(reason)), []),
-              effect.none(),
-            )
-          }
-        }
-      }
+      let #(run, effect) = eval(source, references)
       let state = State(..state, running: Some(run))
       #(state, effect)
     }
     Resume(value, env, k, effects) -> {
-      // r.resume(k, [value], env, dict.new())
-      let value = dynamic.unsafe_coerce(dynamic.from(value))
       let result = r.loop(istate.step(istate.V(value), env, k))
       let #(run, effect) = handle_next(result, effects, references)
       let state = State(..state, running: Some(run))
@@ -129,12 +154,26 @@ pub fn update(state, message) {
     TimerComplete -> {
       let State(sections: sections, running: running, ..) = state
       let assert Some(Runner(Waiting(remaining, env, k), effects)) = running
-      let value = dynamic.unsafe_coerce(dynamic.from(v.unit))
-      let result = r.loop(istate.step(istate.V(value), env, k))
+      let result = r.loop(istate.step(istate.V(v.unit), env, k))
       let effects = [Waited(remaining), ..effects]
       let #(run, effect) = handle_next(result, effects, references)
 
       let state = State(..state, running: Some(run))
+      #(state, effect)
+    }
+    LoadedReference(reference, value, execute_after) -> {
+      let State(references: references, running: running, ..) = state
+      let references = dict.insert(references, reference, value)
+
+      let assert Some(Runner(Loading(reference, env, k), effects)) = running
+
+      let result = r.loop(istate.step(istate.V(value), env, k))
+      let #(run, effect) = case execute_after {
+        True -> handle_eval(result, references)
+        False -> handle_next(result, effects, references)
+      }
+
+      let state = State(..state, references: references, running: Some(run))
       #(state, effect)
     }
     CloseRunner -> {
@@ -145,18 +184,47 @@ pub fn update(state, message) {
 }
 
 fn do_load(reference) {
-  // magpie fetch
-  io.debug("loading")
-  let assert Ok(uri) = uri.parse("http://localhost:8080/saved/std.json")
+  use file <- t.try(case reference {
+    "standard_library" -> Ok("std.json")
+    _ -> Error(snag.new("no file for reference: " <> reference))
+  })
+  let assert Ok(uri) = uri.parse("http://localhost:8080/saved/" <> file)
   let assert Ok(request) = request.from_uri(uri)
   let request =
     request
     |> request.set_body(<<>>)
-  io.debug(request)
   use response <- t.do(t.fetch(request))
-  response
-  |> io.debug
-  t.done(Nil)
+
+  use body <- t.try(case response.status {
+    200 -> Ok(response.body)
+    other -> Error(snag.new("Bad response status: " <> int.to_string(other)))
+  })
+  io.debug("decoded")
+  use body <- t.try(
+    bit_array.to_string(body)
+    |> result.replace_error(snag.new("Not utf8 formatted.")),
+  )
+
+  // use body <- t.try(case bit_array.to_string(body) {
+  //   Ok(data) -> Ok(data)
+  //   Error(Nil) -> Error(snag.new("Not utf8 formatted."))
+  // })
+
+  use source <- t.try(
+    decode.from_json(body)
+    |> result.replace_error(snag.new("Unable to decode source code.")),
+  )
+
+  let env = stdlib.env()
+  let handlers = dict.new()
+  let source = annotated.add_annotation(source, Nil)
+
+  use value <- t.try(
+    r.execute(source, env, handlers)
+    |> result.replace_error(snag.new("Unable to evaluate reference.")),
+  )
+
+  t.done(value)
 }
 
 fn handle_next(result, effects, references) {
@@ -205,10 +273,7 @@ fn handle_next(result, effects, references) {
           effect.none(),
         )
       }
-    Ok(value) -> #(
-      Runner(Done(dynamic.unsafe_coerce(dynamic.from(value))), effects),
-      effect.none(),
-    )
+    Ok(value) -> #(Runner(Done(value), effects), effect.none())
   }
 }
 

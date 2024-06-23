@@ -1,4 +1,3 @@
-import gleam/bit_array
 import gleam/list
 import gleam/string
 
@@ -24,14 +23,10 @@ fn do_lines(source, offset, start, acc) {
     _ ->
       case string.pop_grapheme(source) {
         Ok(#(g, rest)) -> {
-          let offset = offset + byte_size(g)
+          let offset = offset + string.byte_size(g)
           do_lines(rest, offset, start, acc)
         }
         Error(Nil) -> [start, ..acc]
       }
   }
-}
-
-fn byte_size(string: String) -> Int {
-  bit_array.byte_size(<<string:utf8>>)
 }

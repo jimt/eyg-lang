@@ -16,6 +16,8 @@ import gleam/list
 import gleam/listx
 import gleam/option.{None, Some}
 import gleam/order
+import gleam/pair
+import gleam/string
 import intro/state
 import lustre/attribute as a
 import lustre/element.{fragment, none, text} as _
@@ -509,9 +511,6 @@ fn text_input(code, on_update, errors) {
   )
 }
 
-import gleam/pair
-import gleam/string
-
 fn highlighted(code) {
   code
   |> lexer.lex()
@@ -594,7 +593,7 @@ fn pop_bytes(string, bytes, acc) {
     x if x > 0 ->
       case string.pop_grapheme(string) {
         Ok(#(g, rest)) -> {
-          let bytes = bytes - byte_size(g)
+          let bytes = bytes - string.byte_size(g)
           let acc = [g, ..acc]
           pop_bytes(rest, bytes, acc)
         }
@@ -602,8 +601,4 @@ fn pop_bytes(string, bytes, acc) {
       }
     _ -> panic as "weird bytes"
   }
-}
-
-fn byte_size(string: String) -> Int {
-  bit_array.byte_size(<<string:utf8>>)
 }

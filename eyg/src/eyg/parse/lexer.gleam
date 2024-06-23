@@ -1,5 +1,4 @@
 import eyg/parse/token as t
-import gleam/bit_array
 import gleam/list
 import gleam/string
 
@@ -75,7 +74,8 @@ fn pop(raw, start) {
             False ->
               case is_upper_grapheme(g) {
                 True -> uppername(g, rest, done)
-                False -> done(t.UnexpectedGrapheme(g), byte_size(g), rest)
+                False ->
+                  done(t.UnexpectedGrapheme(g), string.byte_size(g), rest)
               }
           }
         Error(Nil) -> Error(Nil)
@@ -90,13 +90,13 @@ fn whitespace(buffer, rest, done) {
     "\n" <> rest -> whitespace(buffer <> "\n", rest, done)
     " " <> rest -> whitespace(buffer <> " ", rest, done)
     "\t" <> rest -> whitespace(buffer <> "\t", rest, done)
-    _ -> done(t.Whitespace(buffer), byte_size(buffer), rest)
+    _ -> done(t.Whitespace(buffer), string.byte_size(buffer), rest)
   }
 }
 
 fn string(buffer, rest, done) {
   case rest {
-    "\"" <> rest -> done(t.String(buffer), byte_size(buffer) + 2, rest)
+    "\"" <> rest -> done(t.String(buffer), string.byte_size(buffer) + 2, rest)
     "\\" <> rest ->
       case string.pop_grapheme(rest) {
         Ok(#(g, rest)) -> string(buffer <> "\\" <> g, rest, done)
@@ -106,7 +106,7 @@ fn string(buffer, rest, done) {
       case string.pop_grapheme(rest) {
         Ok(#(g, rest)) -> string(buffer <> g, rest, done)
         Error(Nil) ->
-          done(t.UnterminatedString(buffer), byte_size(buffer) + 1, "")
+          done(t.UnterminatedString(buffer), string.byte_size(buffer) + 1, "")
       }
   }
 }
@@ -116,9 +116,9 @@ fn name(buffer, raw, done) {
     Ok(#(g, rest)) ->
       case is_lower_grapheme(g) || is_digit_grapheme(g) || g == "_" {
         True -> name(buffer <> g, rest, done)
-        False -> done(t.Name(buffer), byte_size(buffer), raw)
+        False -> done(t.Name(buffer), string.byte_size(buffer), raw)
       }
-    Error(Nil) -> done(t.Name(buffer), byte_size(buffer), raw)
+    Error(Nil) -> done(t.Name(buffer), string.byte_size(buffer), raw)
   }
 }
 
@@ -132,9 +132,9 @@ fn uppername(buffer, raw, done) {
         || g == "_"
       {
         True -> uppername(buffer <> g, rest, done)
-        False -> done(t.Uppername(buffer), byte_size(buffer), raw)
+        False -> done(t.Uppername(buffer), string.byte_size(buffer), raw)
       }
-    Error(Nil) -> done(t.Uppername(buffer), byte_size(buffer), raw)
+    Error(Nil) -> done(t.Uppername(buffer), string.byte_size(buffer), raw)
   }
 }
 
@@ -150,12 +150,8 @@ fn integer(buffer, rest, done) {
     "8" <> rest -> integer(buffer <> "8", rest, done)
     "9" <> rest -> integer(buffer <> "9", rest, done)
     "0" <> rest -> integer(buffer <> "0", rest, done)
-    _ -> done(t.Integer(buffer), byte_size(buffer), rest)
+    _ -> done(t.Integer(buffer), string.byte_size(buffer), rest)
   }
-}
-
-fn byte_size(string: String) -> Int {
-  bit_array.byte_size(<<string:utf8>>)
 }
 
 fn is_lower_grapheme(grapheme) {

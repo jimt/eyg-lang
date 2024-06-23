@@ -9,6 +9,7 @@ import eygir/decode
 import gleam/bit_array
 import gleam/dict.{type Dict}
 import gleam/fetch
+import gleam/float
 import gleam/http/request
 import gleam/int
 import gleam/io
@@ -19,6 +20,7 @@ import harness/stdlib
 import intro/content
 import lustre/effect
 import lustre/element.{type Element}
+import plinth/browser/geolocation
 import snag
 
 // import midas/browser
@@ -35,6 +37,11 @@ pub type Effect {
   Asked(question: String, answer: String)
   Waited(Int)
   Random(Int)
+  Geolocation(reply: Result(geolocation.GeolocationPosition, String))
+}
+
+pub type For {
+  Geo
 }
 
 pub type Handle {
@@ -42,6 +49,7 @@ pub type Handle {
   Loading(reference: String, Env(Nil), Stack(Nil))
   Waiting(remaining: Int, Env(Nil), Stack(Nil))
   Asking(question: String, value: String, Env(Nil), Stack(Nil))
+  Suspended(for: For, Env(Nil), Stack(Nil))
   Done(Value)
 }
 
@@ -67,6 +75,7 @@ pub type Message {
   NewRunner(Runner)
   Run(#(Expression(#(Int, Int)), #(Int, Int)))
   Resume(Value, Env(Nil), Stack(Nil), List(Effect))
+  Unsuspend(Effect)
   TimerComplete
   // execute after assumes boolean information probably should be list of args and/or reference to possible effects
   LoadedReference(reference: String, value: Value, execute_after: Bool)
@@ -151,8 +160,34 @@ pub fn update(state, message) {
       let state = State(..state, running: Some(run))
       #(state, effect)
     }
+    Unsuspend(effect) -> {
+      let State(running: running, ..) = state
+      let assert Some(Runner(Suspended(_, env, k), effects)) = running
+
+      let value = case effect {
+        Geolocation(Ok(geolocation.GeolocationPosition(
+          latitude: latitude,
+          longitude: longitude,
+          ..,
+        ))) -> {
+          v.ok(
+            v.Record([
+              #("latitude", v.Str(float.to_string(latitude))),
+              #("longitude", v.Str(float.to_string(longitude))),
+            ]),
+          )
+        }
+        _ -> panic
+      }
+      let result = r.loop(istate.step(istate.V(value), env, k))
+      let effects = [effect, ..effects]
+      let #(run, effect) = handle_next(result, effects, references)
+
+      let state = State(..state, running: Some(run))
+      #(state, effect)
+    }
     TimerComplete -> {
-      let State(sections: sections, running: running, ..) = state
+      let State(running: running, ..) = state
       let assert Some(Runner(Waiting(remaining, env, k), effects)) = running
       let result = r.loop(istate.step(istate.V(v.unit), env, k))
       let effects = [Waited(remaining), ..effects]
@@ -251,6 +286,18 @@ fn handle_next(result, effects, references) {
                   global.set_timeout(remaining, fn() {
                     d(TimerComplete)
                     Nil
+                  })
+                  Nil
+                }),
+              )
+            }
+            "Geo" -> {
+              #(
+                Runner(Suspended(Geo, env, k), effects),
+                effect.from(fn(d) {
+                  geolocation.current_position()
+                  |> promise.map(fn(result) {
+                    d(Unsuspend(Geolocation(result)))
                   })
                   Nil
                 }),

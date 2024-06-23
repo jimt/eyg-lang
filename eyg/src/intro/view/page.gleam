@@ -147,6 +147,10 @@ pub fn runner(state) {
               h.div([a.class("border-4 border-blue-500 px-6 py-2")], [
                 h.div([], [text("Waiting " <> int.to_string(remaining))]),
               ])
+            state.Suspended(_, _, _) ->
+              h.div([a.class("border-4 border-blue-500 px-6 py-2")], [
+                h.div([], [text("Finding location ")]),
+              ])
             state.Done(value) ->
               h.div([a.class("border-4 border-green-500 px-6 py-2")], [
                 h.div([], [text("Done")]),
@@ -180,6 +184,12 @@ fn logs1(logs) {
             text("Wait"),
           ]),
           h.span([a.class("px-1")], [text(int.to_string(time))]),
+        ]
+        state.Geolocation(_) -> [
+          h.span([a.class("bg-blue-700 text-white text-right px-2")], [
+            text("Geo"),
+          ]),
+          h.span([a.class("px-1")], []),
         ]
         state.Asked(question, answer) -> [
           h.span([a.class("bg-gray-700 text-white text-right px-2")], [

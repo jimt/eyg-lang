@@ -33,8 +33,11 @@ let run = (_) -> {
       ]),
       "let { string } = #standard_library
 let run = (_) -> { 
+  let a = match perform Geo({}) {
+    Ok({latitude,longitude}) -> { {latitude,longitude} }
+   }
   let _ = perform Wait(5000)
-  5 
+  a
 }",
     ),
   ]

@@ -43,6 +43,10 @@ pub fn within_environment(runtime_env) {
   Context(bindings, scope, infer.builtins())
 }
 
+pub fn empty_environment() {
+  Context(dict.new(), [], infer.builtins())
+}
+
 // use capture because we want efficient ability to get to continuations
 fn value_to_type(value, bindings) {
   case value {

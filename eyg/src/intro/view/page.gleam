@@ -1,5 +1,6 @@
 import eyg/analysis/inference/levels_j/contextual as j
 import eyg/analysis/type_/binding
+import eyg/analysis/type_/binding/debug
 import eyg/analysis/type_/isomorphic as t
 import eyg/parse
 import eyg/parse/lexer
@@ -7,12 +8,14 @@ import eyg/runtime/value as v
 import eyg/text/highlight
 import eyg/text/text
 import eygir/annotated
+import gleam/bit_array
 import gleam/dynamic
 import gleam/int
 import gleam/io
 import gleam/list
 import gleam/listx
 import gleam/option.{None, Some}
+import gleam/order
 import intro/state
 import lustre/attribute as a
 import lustre/element.{fragment, none, text} as _
@@ -241,6 +244,60 @@ fn iterate(items, initial, func) {
   do_iterate(items, func, [], initial, [])
 }
 
+pub fn information(source) {
+  let #(tree, spans) = annotated.strip_annotation(source)
+  let #(exp, bindings) = j.infer(tree, t.Empty, 0, j.new_state())
+  let acc = annotated.strip_annotation(exp).1
+  let acc =
+    list.map(acc, fn(node) {
+      let #(error, typed, effect, env) = node
+      let typed = binding.resolve(typed, bindings)
+
+      let effect = binding.resolve(effect, bindings)
+      // #(error, typed, effect)
+      error
+    })
+  let assert Ok(zipped) = list.strict_zip(spans, acc)
+  zipped
+}
+
+fn type_errors(assigns, final) {
+  let source = case final, assigns {
+    None, [#(label, _, span), ..] -> #(annotated.Variable(label), #(0, 0))
+    None, [] -> #(annotated.Empty, #(0, 0))
+    Some(other), _ -> other
+  }
+  let source = rollup_block(source, assigns)
+  let errors =
+    information(source)
+    |> list.filter_map(fn(p) {
+      let #(span, error) = p
+      case error {
+        Ok(_) -> Error(Nil)
+        Error(reason) -> Ok(#(span, reason))
+      }
+    })
+  // TODO move to text these highlight functions
+
+  let errors =
+    list.sort(errors, fn(a, b) {
+      let #(#(start_a, _end), _reason) = a
+      let #(#(start_b, _end), _reason) = b
+      int.compare(start_a, start_b)
+    })
+  let #(max, errors) =
+    list.map_fold(errors, 0, fn(max, value) {
+      let #(#(start, end), reason) = value
+      let #(max, span) = case start {
+        _ if max <= start -> #(end, #(start, end))
+        _ if max <= end -> #(end, #(max, end))
+        _ -> #(max, #(max, max))
+      }
+      #(max, #(span, reason))
+    })
+  errors
+}
+
 fn section(previous, section, post, state) {
   let #(context, code) = section
 
@@ -252,8 +309,10 @@ fn section(previous, section, post, state) {
 
   // state = previous assignments
 
-  let #(can_run, state) = case parse.block_from_string(code) {
+  let #(can_run, errors, state) = case parse.block_from_string(code) {
     Ok(#(#(assigns, final), _remaining_tokens)) -> {
+      let errors = type_errors(assigns, final)
+
       let assigns = list.append(assigns, state)
       let #(exp, target) = case final, assigns {
         None, [#(label, _, span), ..] -> #(
@@ -271,14 +330,14 @@ fn section(previous, section, post, state) {
           |> list.length
         })
       let exp = rollup_block(exp, assigns)
-      #(Ok(#(exp, target)), assigns)
+      #(Ok(#(exp, target)), errors, assigns)
     }
-    Error(reason) -> #(Error(reason), state)
+    Error(reason) -> #(Error(reason), [], state)
   }
-  #(render_section(context, code, on_update, can_run), state)
+  #(render_section(context, code, on_update, can_run, errors), state)
 }
 
-fn render_section(context, code, on_update, can_run) {
+fn render_section(context, code, on_update, can_run, errors) {
   h.div([a.class("")], [
     h.div(
       [
@@ -309,12 +368,19 @@ fn render_section(context, code, on_update, can_run) {
           _ -> []
         }),
         h.div([a.class("my-4 bg-gray-200 rounded bg-opacity-70")], [
-          h.div([a.class("p-2")], [text_input(code, on_update)]),
+          h.div([a.class("p-2")], [text_input(code, on_update, errors)]),
           case can_run {
             Ok(_) -> {
-              h.div([a.class("text-right")], [
-                // h.button([e.on_click(state.Run(exp))], [text("run")]),
-              ])
+              h.div(
+                [a.class("")],
+                list.map(errors, fn(error) {
+                  let #(_span, reason) = error
+                  h.div(
+                    [a.class("px-2 -mt-1 py-1 rounded bg-pink-500 text-white")],
+                    [text(debug.render_reason(reason))],
+                  )
+                }),
+              )
             }
             Error(reason) ->
               h.div(
@@ -346,7 +412,7 @@ const monospace = "ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,\"Liberatio
 
 const pre_id = "highlighting-underlay"
 
-fn text_input(code, on_update) {
+fn text_input(code, on_update, errors) {
   h.div(
     [
       a.style([
@@ -375,6 +441,24 @@ fn text_input(code, on_update) {
           ]),
         ],
         highlighted(code),
+      ),
+      h.pre(
+        [
+          a.id(pre_id),
+          a.style([
+            #("position", "absolute"),
+            #("top", "0"),
+            #("bottom", "0"),
+            #("left", "0"),
+            #("right", "0"),
+            #("margin", "0 !important"),
+            #("white-space", "pre-wrap"),
+            #("word-wrap", "break-word"),
+            #("overflow", "auto"),
+            #("color", "transparent"),
+          ]),
+        ],
+        underline(code, errors),
       ),
       h.textarea(
         [
@@ -425,10 +509,6 @@ fn text_input(code, on_update) {
   )
 }
 
-fn errors(code) {
-  information(code <> "\r\nrun")
-}
-
 import gleam/pair
 import gleam/string
 
@@ -457,23 +537,73 @@ fn highlight_token(token) {
   h.span([a.class(class)], [text(content)])
 }
 
-pub fn information(source) {
-  case parse.from_string(source) {
-    Ok(#(tree, _)) -> {
-      let #(tree, spans) = annotated.strip_annotation(tree)
-      let #(exp, bindings) = j.infer(tree, t.Empty, 0, j.new_state())
-      let acc = annotated.strip_annotation(exp).1
-      let acc =
-        list.map(acc, fn(node) {
-          let #(error, typed, effect, env) = node
-          let typed = binding.resolve(typed, bindings)
+fn underline(code, errors) {
+  // let code = bit_array.from_string(code)
+  let #(_, _, acc) =
+    list.fold(errors, #(code, 0, []), fn(state, error) {
+      let #(code, offset, acc) = state
+      let #(#(start, end), reason) = error
+      let pre = start - offset
+      let emp = end - start
+      let offset = end
+      let assert Ok(#(content, code)) = pop_bytes(code, pre, [])
+      let acc = case content {
+        "" -> acc
+        content -> [h.span([], [text(content)]), ..acc]
+      }
+      let assert Ok(#(content, code)) = pop_bytes(code, emp, [])
+      let acc = case content {
+        "" -> acc
+        content -> [
+          h.span([a.style([#("text-decoration", "red wavy underline;")])], [
+            text(content),
+          ]),
+          ..acc
+        ]
+      }
+      #(code, offset, acc)
+      // panic
+      // case code {
+      //   <<pre:bytes-size(pre), emp:bytes-size(emp), remaining:bytes>> -> {
+      //     let assert Ok(pre) = bit_array.to_string(pre)
+      //     let acc = case pre {
+      //       "" -> acc
+      //       content -> [h.span([], [text(content)]), ..acc]
+      //     }
+      //     let assert Ok(emp) = bit_array.to_string(emp)
+      //     let acc = case emp {
+      //       "" -> acc
+      //       content -> [
+      //         h.span([a.style([#("text-decoration", "red wavy underline;")])], [
+      //           text(content),
+      //         ]),
+      //         ..acc
+      //       ]
+      //     }
+      //     #(remaining, offset, acc)
+      //   }
+      //   _ -> panic
+      // }
+    })
+  list.reverse(acc)
+}
 
-          let effect = binding.resolve(effect, bindings)
-          #(error, typed, effect)
-        })
-
-      Ok(#(spans, acc))
-    }
-    Error(reason) -> Error(reason)
+fn pop_bytes(string, bytes, acc) {
+  case bytes {
+    0 -> Ok(#(string.concat(list.reverse(acc)), string))
+    x if x > 0 ->
+      case string.pop_grapheme(string) {
+        Ok(#(g, rest)) -> {
+          let bytes = bytes - byte_size(g)
+          let acc = [g, ..acc]
+          pop_bytes(rest, bytes, acc)
+        }
+        Error(Nil) -> Error(Nil)
+      }
+    _ -> panic as "weird bytes"
   }
+}
+
+fn byte_size(string: String) -> Int {
+  bit_array.byte_size(<<string:utf8>>)
 }

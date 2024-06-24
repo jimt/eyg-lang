@@ -168,16 +168,42 @@ pub fn update(state, message) {
         Geolocation(Ok(geolocation.GeolocationPosition(
           latitude: latitude,
           longitude: longitude,
-          ..,
+          altitude: altitude,
+          accuracy: accuracy,
+          altitude_accuracy: altitude_accuracy,
+          heading: heading,
+          speed: speed,
+          timestamp: timestamp,
         ))) -> {
           v.ok(
             v.Record([
-              #("latitude", v.Str(float.to_string(latitude))),
-              #("longitude", v.Str(float.to_string(longitude))),
+              #("latitude", v.Integer(float.truncate(latitude))),
+              #("longitude", v.Integer(float.truncate(longitude))),
+              #(
+                "altitude",
+                v.option(altitude, fn(x) { v.Integer(float.truncate(x)) }),
+              ),
+              #("accuracy", v.Integer(float.truncate(accuracy))),
+              #(
+                "altitude_accuracy",
+                v.option(altitude_accuracy, fn(x) {
+                  v.Integer(float.truncate(x))
+                }),
+              ),
+              #(
+                "heading",
+                v.option(heading, fn(x) { v.Integer(float.truncate(x)) }),
+              ),
+              #(
+                "speed",
+                v.option(speed, fn(x) { v.Integer(float.truncate(x)) }),
+              ),
+              #("timestamp", v.Integer(float.truncate(timestamp))),
             ]),
           )
         }
-        _ -> panic
+        Geolocation(Error(reason)) -> v.error(v.Str(reason))
+        _ -> panic as "why did this come in as an effect"
       }
       let result = r.loop(istate.step(istate.V(value), env, k))
       let effects = [effect, ..effects]

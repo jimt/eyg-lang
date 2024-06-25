@@ -1,3 +1,7 @@
+import eyg/analysis/inference/levels_j/contextual as j
+import eyg/analysis/type_/binding
+import eyg/analysis/type_/binding/debug
+import eyg/analysis/type_/isomorphic as type_
 import eyg/parse
 import eyg/runtime/break
 import eyg/runtime/cast
@@ -13,6 +17,7 @@ import gleam/float
 import gleam/http/request
 import gleam/int
 import gleam/io
+import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/uri
@@ -20,12 +25,10 @@ import harness/stdlib
 import intro/content
 import lustre/effect
 import lustre/element.{type Element}
-import plinth/browser/geolocation
-import snag
-
-// import midas/browser
 import midas/task as t
+import plinth/browser/geolocation
 import plinth/javascript/global
+import snag
 
 // circular dependency on content potential if init calls content and content needs sections
 // init should take some value
@@ -138,12 +141,84 @@ fn handle_eval(result, references) {
   }
 }
 
+pub fn information(source) {
+  let #(tree, spans) = annotated.strip_annotation(source)
+  let #(exp, bindings) = j.infer(tree, type_.Empty, 0, j.new_state())
+  let acc = annotated.strip_annotation(exp).1
+  let acc =
+    list.map(acc, fn(node) {
+      let #(error, typed, effect, env) = node
+      let typed = binding.resolve(typed, bindings)
+
+      let effect = binding.resolve(effect, bindings)
+      // #(error, typed, effect)
+      error
+    })
+  let assert Ok(zipped) = list.strict_zip(spans, acc)
+  zipped
+}
+
+// expects reversed
+pub fn rollup_block(exp, assigns) {
+  case assigns {
+    [] -> exp
+    [#(label, value, span), ..assigns] ->
+      rollup_block(#(annotated.Let(label, value, exp), span), assigns)
+  }
+}
+
+fn find_references(exp) {
+  let #(exp, _meta) = exp
+  case exp {
+    annotated.Variable("#" <> ref) -> [ref]
+    annotated.Let(_label, value, then) ->
+      list.append(find_references(value), find_references(then))
+    annotated.Lambda(_label, body) -> find_references(body)
+    annotated.Apply(func, arg) ->
+      list.append(find_references(func), find_references(arg))
+    _ -> []
+  }
+}
+
 pub fn update(state, message) {
   let State(references: references, ..) = state
   case message {
     EditCode(sections) -> {
+      // TODO fix the fact only works in the last section
+      let assert [s, ..] = list.reverse(sections)
+      let code = s.1
+      let used = case parse.block_from_string(code) {
+        Ok(#(#(assigns, exp), _rest)) -> {
+          let exp =
+            rollup_block(
+              option.unwrap(exp, #(annotated.Empty, #(0, 0))),
+              assigns,
+            )
+          let references = find_references(exp)
+          io.debug(#(references, "fed"))
+          references
+        }
+
+        Error(_) -> []
+      }
+
       let state = State(..state, sections: sections)
-      #(state, effect.none())
+      #(
+        state,
+        effect.from(fn(d) {
+          list.map(used, fn(reference) {
+            promise.map(browser_run(do_load(reference)), fn(result) {
+              1
+              io.debug("=====")
+              // let #(tree, spans) = annotated.strip_annotation(source)
+
+              // recursive lookup
+              io.debug("bindings")
+            })
+          })
+          Nil
+        }),
+      )
     }
     NewRunner(running) -> {
       let state = State(..state, running: Some(running))
@@ -275,6 +350,14 @@ fn do_load(reference) {
     decode.from_json(body)
     |> result.replace_error(snag.new("Unable to decode source code.")),
   )
+
+  let #(exp, bindings) = j.infer(source, type_.Empty, 0, j.new_state())
+  // io.debug(bindings)
+  let #(_, type_info) = exp
+  let #(res, typevar, eff, _hmm) = type_info
+  io.debug(type_info)
+  binding.resolve(typevar, bindings)
+  |> debug.render_type
 
   let env = stdlib.env()
   let handlers = dict.new()

@@ -256,32 +256,15 @@ fn iterate(items, initial, func) {
   do_iterate(items, func, [], initial, [])
 }
 
-pub fn information(source) {
-  let #(tree, spans) = annotated.strip_annotation(source)
-  let #(exp, bindings) = j.infer(tree, t.Empty, 0, j.new_state())
-  let acc = annotated.strip_annotation(exp).1
-  let acc =
-    list.map(acc, fn(node) {
-      let #(error, typed, effect, env) = node
-      let typed = binding.resolve(typed, bindings)
-
-      let effect = binding.resolve(effect, bindings)
-      // #(error, typed, effect)
-      error
-    })
-  let assert Ok(zipped) = list.strict_zip(spans, acc)
-  zipped
-}
-
 fn type_errors(assigns, final) {
   let source = case final, assigns {
     None, [#(label, _, span), ..] -> #(annotated.Variable(label), #(0, 0))
     None, [] -> #(annotated.Empty, #(0, 0))
     Some(other), _ -> other
   }
-  let source = rollup_block(source, assigns)
+  let source = state.rollup_block(source, assigns)
   let errors =
-    information(source)
+    state.information(source)
     |> list.filter_map(fn(p) {
       let #(span, error) = p
       case error {
@@ -341,7 +324,7 @@ fn section(previous, section, post, state) {
           |> list.take_while(fn(x) { x < start })
           |> list.length
         })
-      let exp = rollup_block(exp, assigns)
+      let exp = state.rollup_block(exp, assigns)
       #(Ok(#(exp, target)), errors, assigns)
     }
     Error(reason) -> #(Error(reason), [], state)
@@ -405,15 +388,6 @@ fn render_section(context, code, on_update, can_run, errors) {
       ],
     ),
   ])
-}
-
-// expects reversed
-fn rollup_block(exp, assigns) {
-  case assigns {
-    [] -> exp
-    [#(label, value, span), ..assigns] ->
-      rollup_block(#(annotated.Let(label, value, exp), span), assigns)
-  }
 }
 
 fn editor(code, on_update) {

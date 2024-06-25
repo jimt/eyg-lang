@@ -151,3 +151,29 @@ pub fn map_annotation(
     }
   }
 }
+
+pub fn list_builtins(exp) {
+  do_list_builtins(exp, [])
+}
+
+// do later node first in Let/Call statements so no need to reverse
+fn do_list_builtins(exp, found) {
+  let #(exp, _meta) = exp
+  case exp {
+    Builtin(identifier) ->
+      case list.contains(found, identifier) {
+        True -> found
+        False -> [identifier, ..found]
+      }
+    Let(_label, value, then) -> {
+      let found = do_list_builtins(then, found)
+      do_list_builtins(value, found)
+    }
+    Lambda(_label, body) -> do_list_builtins(body, found)
+    Apply(func, arg) -> {
+      let found = do_list_builtins(arg, found)
+      do_list_builtins(func, found)
+    }
+    _ -> []
+  }
+}

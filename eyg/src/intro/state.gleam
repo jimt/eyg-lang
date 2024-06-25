@@ -167,19 +167,6 @@ pub fn rollup_block(exp, assigns) {
   }
 }
 
-fn find_references(exp) {
-  let #(exp, _meta) = exp
-  case exp {
-    annotated.Variable("#" <> ref) -> [ref]
-    annotated.Let(_label, value, then) ->
-      list.append(find_references(value), find_references(then))
-    annotated.Lambda(_label, body) -> find_references(body)
-    annotated.Apply(func, arg) ->
-      list.append(find_references(func), find_references(arg))
-    _ -> []
-  }
-}
-
 pub fn update(state, message) {
   let State(references: references, ..) = state
   case message {
@@ -194,7 +181,7 @@ pub fn update(state, message) {
               option.unwrap(exp, #(annotated.Empty, #(0, 0))),
               assigns,
             )
-          let references = find_references(exp)
+          let references = annotated.list_builtins(exp)
           io.debug(#(references, "fed"))
           references
         }
@@ -321,7 +308,7 @@ pub fn update(state, message) {
 
 fn do_load(reference) {
   use file <- t.try(case reference {
-    "standard_library" -> Ok("std.json")
+    "#standard_library" -> Ok("std.json")
     _ -> Error(snag.new("no file for reference: " <> reference))
   })
   let assert Ok(uri) = uri.parse("http://localhost:8080/saved/" <> file)

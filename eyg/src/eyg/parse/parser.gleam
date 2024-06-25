@@ -286,7 +286,7 @@ pub fn expression(tokens) {
       case rest {
         [#(t.Name(label), end), ..rest] -> {
           let span = #(start, end + string.length(label))
-          Ok(#(#(e.Variable("#" <> label), span), rest))
+          Ok(#(#(e.Builtin("#" <> label), span), rest))
         }
         _ -> fail(rest)
       }

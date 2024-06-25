@@ -128,7 +128,7 @@ fn eval(source: #(Expression(#(Int, Int)), #(Int, Int)), references) {
 }
 
 fn handle_eval(result, references) {
-  let #(run, effect) = case result {
+  case result {
     Ok(f) -> {
       handle_next(
         r.resume(f, [v.unit], stdlib.env(), dict.new()),
@@ -139,6 +139,7 @@ fn handle_eval(result, references) {
     Error(#(reason, meta, env, k)) -> {
       case reason {
         break.UndefinedVariable("#" <> reference) -> {
+          // TODO this should get removed
           case dict.get(references, reference) {
             Ok(#(value, _)) ->
               handle_eval(

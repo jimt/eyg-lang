@@ -152,7 +152,8 @@ pub fn do_eval(source, rev, env, k) {
   case language_to_expression(source) {
     Ok(expression) -> {
       // must be value otherwise/effect continuations need sorting
-      let result = r.execute(expression, state.Env([], lib().1), dict.new())
+      let result =
+        r.execute(expression, state.Env([], dict.new(), lib().1), dict.new())
       let value = case result {
         Ok(value) -> v.ok(value)
         _ -> {

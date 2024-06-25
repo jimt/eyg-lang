@@ -29,7 +29,11 @@ pub type Next(m) {
 
 // Env and Stack(m) also rely on each other
 pub type Env(m) {
-  Env(scope: List(#(String, Value(m))), builtins: dict.Dict(String, Builtin(m)))
+  Env(
+    scope: List(#(String, Value(m))),
+    references: dict.Dict(String, Value(m)),
+    builtins: dict.Dict(String, Builtin(m)),
+  )
 }
 
 pub type Return(m) =
@@ -105,6 +109,11 @@ pub fn eval(exp, env: Env(m), k) {
     e.NoCases -> value(v.Partial(v.NoCases, []))
     e.Handle(label) -> value(v.Partial(v.Handle(label), []))
     e.Shallow(label) -> value(v.Partial(v.Shallow(label), []))
+    e.Builtin("#" <> ref) ->
+      case dict.get(env.references, ref) {
+        Ok(v) -> value(v)
+        Error(Nil) -> Error(break.UndefinedVariable("#" <> ref))
+      }
     e.Builtin(identifier) -> value(v.Partial(v.Builtin(identifier), []))
   }
   |> result.map_error(fn(reason) { #(reason, meta, env, k) })

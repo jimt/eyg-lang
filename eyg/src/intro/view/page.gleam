@@ -1,22 +1,16 @@
-import eyg/analysis/inference/levels_j/contextual as j
-import eyg/analysis/type_/binding
 import eyg/analysis/type_/binding/debug
-import eyg/analysis/type_/isomorphic as t
 import eyg/parse
 import eyg/parse/lexer
 import eyg/runtime/value as v
 import eyg/text/highlight
 import eyg/text/text
 import eygir/annotated
-import gleam/bit_array
 import gleam/dict
 import gleam/dynamic
 import gleam/int
-import gleam/io
 import gleam/list
 import gleam/listx
 import gleam/option.{None, Some}
-import gleam/order
 import gleam/pair
 import gleam/string
 import intro/state
@@ -193,9 +187,9 @@ fn logs1(logs) {
           h.span([a.class("bg-gray-700 text-white text-right px-2")], [
             text("Ask"),
           ]),
-          h.span([a.class("px-1")], [text(answer)]),
+          h.span([a.class("px-1")], [text(question), text("?: "), text(answer)]),
         ]
-        state.Random(value) -> [
+        state.Random(_value) -> [
           h.span([a.class("bg-gray-700 text-white text-right px-2")], [
             text("Random"),
           ]),
@@ -352,10 +346,6 @@ fn render_section(context, code, on_update, can_run, errors) {
       ],
     ),
   ])
-}
-
-fn editor(code, on_update) {
-  todo
 }
 
 const monospace = "ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,\"Liberation Mono\",\"Courier New\",monospace"

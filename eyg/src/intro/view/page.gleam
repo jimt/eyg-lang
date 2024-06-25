@@ -1,6 +1,7 @@
 import eyg/analysis/type_/binding/debug
 import eyg/parse
 import eyg/parse/lexer
+import eyg/parse/parser
 import eyg/runtime/value as v
 import eyg/text/highlight
 import eyg/text/text
@@ -8,6 +9,7 @@ import eygir/annotated
 import gleam/dict
 import gleam/dynamic
 import gleam/int
+import gleam/io
 import gleam/list
 import gleam/listx
 import gleam/option.{None, Some}
@@ -271,7 +273,9 @@ fn section(references) {
         let exp = state.rollup_block(exp, assigns)
         #(Ok(#(exp, target)), errors, assigns)
       }
-      Error(reason) -> #(Error(reason), [], state)
+      Error(reason) -> {
+        #(Error(reason), [], state)
+      }
     }
     #(render_section(context, code, on_update, can_run, errors), state)
   }
@@ -284,7 +288,7 @@ fn render_section(context, code, on_update, can_run, errors) {
         a.class("mx-auto"),
         a.style([
           #("display", "grid"),
-          #("grid-template-columns", "8em 80ch 1fr"),
+          #("grid-template-columns", "8em 100ch 1fr"),
         ]),
       ],
       [
@@ -308,7 +312,7 @@ fn render_section(context, code, on_update, can_run, errors) {
           _ -> []
         }),
         h.div([a.class("my-4 bg-gray-200 rounded bg-opacity-70")], [
-          h.div([a.class("p-2")], [text_input(code, on_update, errors)]),
+          h.div([a.class("p-2")], [text_input(code, on_update, errors, can_run)]),
           case can_run {
             Ok(_) -> {
               h.div(
@@ -339,7 +343,7 @@ const monospace = "ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,\"Liberatio
 
 const pre_id = "highlighting-underlay"
 
-fn text_input(code, on_update, errors) {
+fn text_input(code, on_update, errors, parse_error) {
   h.div(
     [
       a.style([
@@ -387,6 +391,44 @@ fn text_input(code, on_update, errors) {
         ],
         underline(code, errors),
       ),
+      case parse_error {
+        Ok(_) -> none()
+        Error(reason) -> {
+          let from = case reason {
+            parser.UnexpectedToken(position: position, ..) -> position
+            parser.UnexpectEnd -> string.byte_size(code)
+          }
+          case pop_bytes(code, from, []) {
+            Ok(#(pre, post)) -> {
+              h.pre(
+                [
+                  a.id(pre_id),
+                  a.style([
+                    #("position", "absolute"),
+                    #("top", "0"),
+                    #("bottom", "0"),
+                    #("left", "0"),
+                    #("right", "0"),
+                    #("margin", "0 !important"),
+                    #("white-space", "pre-wrap"),
+                    #("word-wrap", "break-word"),
+                    #("overflow", "auto"),
+                    #("color", "transparent"),
+                  ]),
+                ],
+                [
+                  h.span([], [text(pre)]),
+                  h.span(
+                    [a.style([#("text-decoration", "red wavy underline;")])],
+                    [text(post)],
+                  ),
+                ],
+              )
+            }
+            Error(_) -> none()
+          }
+        }
+      },
       h.textarea(
         [
           a.style([

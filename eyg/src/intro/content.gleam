@@ -59,37 +59,49 @@ let literal = [
   {key: \",\", value: Comma({})}
 ]
 
-let tokenise = !fix((tokenise, acc, buffer) -> {
-  let read_string = !fix((read_string, acc, buffer, rest) -> { 
-    !pop_prefix(buffer, \"\\\\\\\"\", read_string(acc, string.append(buffer,\"\\\"\")), (_) -> {
-      !pop_prefix(buffer, \"\\\"\", read_string(acc, tokenise([String(buffer) ,..acc]), (_) -> {
-        match pop_grapheme(rest) {
-          Ok({head, tail}) -> { read_string(acc, string.append(buffer, head), tail) }
-          Error(_) -> { todo }
+let read_string = !fix((read_string, gathered, rest) -> { 
+  !pop_prefix(rest, \"\\\\\\\"\", 
+    read_string(string.append(gathered, \"\\\"\")), (_) -> {
+    !pop_prefix(rest, \"\\\"\", 
+      (rest) -> { Ok({gathered, rest}) }, 
+      (_) -> {
+        match string.pop_grapheme(rest) {
+          Ok({head, tail}) -> { read_string(string.append(gathered, head), tail) }
+          Error(_) -> { Error({}) }
         }
-      })
-    })
+      }
+    )
   })
+})(\"\")
 
-  !pop_prefix(buffer, \"true\", tokenise([True({}), ..acc]), (_) -> { 
-    !pop_prefix(buffer, \"false\", tokenise([False({}), ..acc]), (_) -> { 
-      !pop_prefix(buffer, \"null\", tokenise([Null({}), ..acc]), (_) -> { 
-        !pop_prefix(buffer, \"\\\"\", read_string(acc, \"\"), (_) -> { 
-          match !pop_grapheme(buffer) {
-            Ok({head, tail}) -> { 
-              match list.contains(whitespace, head) {
-                True(_) -> { tokenise(acc, tail, buffer) }
-                False(_) -> { 
-                  match keylist.find(literal, head) {
-                    Ok(token) -> { tokenise([token, ..acc], tail) }
-                    Error(_) -> { todo }
+let tokenise = !fix((tokenise, acc, rest) -> {
+  !pop_prefix(rest, \"true\", tokenise([True({}), ..acc]), (_) -> { 
+    !pop_prefix(rest, \"false\", tokenise([False({}), ..acc]), (_) -> { 
+      !pop_prefix(rest, \"null\", tokenise([Null({}), ..acc]), (_) -> { 
+        !pop_prefix(rest, \"\\\"\",
+          (rest) -> {
+            match read_string(rest) {
+              Ok({gathered, rest}) -> { tokenise([String(gathered), ..acc], rest) }
+              Error(_) -> { list.reverse([UnterminatedString(rest), ..acc]) }
+            }
+          }, 
+          (_) -> { 
+            match !pop_grapheme(rest) {
+              Ok({head, tail}) -> { 
+                match list.contains(whitespace, head) {
+                  True(_) -> { tokenise(acc, tail) }
+                  False(_) -> { 
+                    match keylist.find(literal, head) {
+                      Ok(token) -> { tokenise([token, ..acc], tail) }
+                      Error(_) -> { todo_as_read_number }
+                    }
                   }
                 }
               }
+              Error(_) -> { list.reverse(acc) }
             }
-            Error(_) -> { list.reverse(acc) }
           }
-        })
+        )
       })
     })
   })

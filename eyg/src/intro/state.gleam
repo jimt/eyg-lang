@@ -39,7 +39,6 @@ pub type Effect {
   Log(String)
   Asked(question: String, answer: String)
   Waited(Int)
-  Random(Int)
   Geolocation(reply: Result(geolocation.GeolocationPosition, String))
 }
 
@@ -82,6 +81,7 @@ fn load_new_references(sections, refs, d) {
       let #(_context, code) = section
       find_new_references(code, refs)
     })
+    |> list.unique()
 
   list.map(new_refs, fn(reference) {
     let task = do_load(reference)
@@ -140,6 +140,19 @@ fn handle_eval(result, references) {
       }
     }
   }
+}
+
+pub fn all_errors(exp, references) {
+  let #(exp, _bindings) =
+    j.infer(exp, type_.Empty, references, 0, j.new_state())
+  let acc = annotated.strip_annotation(exp).1
+  list.filter_map(acc, fn(node) {
+    let #(type_error, _typed, _effect, _env) = node
+    case type_error {
+      Ok(Nil) -> Error(Nil)
+      Error(reason) -> Ok(reason)
+    }
+  })
 }
 
 pub fn information(source, references) {
@@ -324,7 +337,6 @@ fn reply_value(effect) {
     }
     Geolocation(Error(reason)) -> v.error(v.Str(reason))
     Asked(_question, answer) -> v.Str(answer)
-    Random(_) -> todo
     Waited(_duration) -> v.unit
     Log(_) -> panic as "log can be dealt with synchronously"
   }
@@ -333,6 +345,8 @@ fn reply_value(effect) {
 fn do_load(reference) {
   use file <- t.try(case reference {
     "standard_library" -> Ok("std.json")
+    "json" -> Ok("json.json")
+
     _ -> Error(snag.new("no file for reference: " <> reference))
   })
   let assert Ok(uri) = uri.parse("http://localhost:8080/saved/" <> file)
@@ -362,6 +376,8 @@ fn do_load(reference) {
   )
   io.println("Decoded source for reference: " <> reference)
 
+  all_errors(source, dict.new())
+  |> io.debug
   let #(exp, bindings) =
     j.infer(source, type_.Empty, dict.new(), 0, j.new_state())
 

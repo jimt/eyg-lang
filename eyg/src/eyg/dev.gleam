@@ -30,11 +30,13 @@ fn build_intro() {
   use index <- t.do(t.read("src/intro/index.html"))
   use style <- t.do(t.read("src/intro/index.css"))
   use stdlib <- t.do(t.read("saved/std.json"))
+  use json <- t.do(t.read("saved/json.json"))
 
   t.done([
     #("/intro/index.html", index),
     #("/intro/index.css", style),
     #("/saved/std.json", stdlib),
+    #("/saved/json.json", json),
     ..files
   ])
 }

@@ -182,12 +182,6 @@ fn logs1(logs) {
           ]),
           h.span([a.class("px-1")], [text(question), text(": "), text(answer)]),
         ]
-        state.Random(_value) -> [
-          h.span([a.class("bg-gray-700 text-white text-right px-2")], [
-            text("Random"),
-          ]),
-          h.span([a.class("px-1")], [text("todo")]),
-        ]
       }
     }),
   )

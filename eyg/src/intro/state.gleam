@@ -62,7 +62,7 @@ pub type Runner {
 
 pub type State {
   State(
-    references: Dict(String, Value),
+    references: Dict(String, #(Value, binding.Poly)),
     sections: List(Section),
     running: Option(Runner),
   )
@@ -81,7 +81,11 @@ pub type Message {
   Unsuspend(Effect)
   TimerComplete
   // execute after assumes boolean information probably should be list of args and/or reference to possible effects
-  LoadedReference(reference: String, value: Value, execute_after: Bool)
+  LoadedReference(
+    reference: String,
+    value: #(Value, binding.Poly),
+    execute_after: Bool,
+  )
   CloseRunner
 }
 
@@ -109,7 +113,7 @@ fn handle_eval(result, references) {
       case reason {
         break.UndefinedVariable("#" <> reference) -> {
           case dict.get(references, reference) {
-            Ok(value) ->
+            Ok(#(value, _)) ->
               handle_eval(
                 r.loop(istate.step(istate.V(value), env, k)),
                 references,
@@ -123,7 +127,8 @@ fn handle_eval(result, references) {
                     case result {
                       Ok(value) -> {
                         // need reference here to handle nested reference loading
-                        d(LoadedReference(reference, value, True))
+                        todo as "shouldnt need to load reference"
+                        // d(LoadedReference(reference, value, True))
                       }
                       Error(reason) -> io.println(snag.pretty_print(reason))
                     }
@@ -143,7 +148,8 @@ fn handle_eval(result, references) {
 
 pub fn information(source) {
   let #(tree, spans) = annotated.strip_annotation(source)
-  let #(exp, bindings) = j.infer(tree, type_.Empty, 0, j.new_state())
+  let #(exp, bindings) =
+    j.infer(tree, type_.Empty, dict.new(), 0, j.new_state())
   let acc = annotated.strip_annotation(exp).1
   let acc =
     list.map(acc, fn(node) {
@@ -290,6 +296,7 @@ pub fn update(state, message) {
 
       let assert Some(Runner(Loading(reference, env, k), effects)) = running
 
+      let #(value, _) = value
       let result = r.loop(istate.step(istate.V(value), env, k))
       let #(run, effect) = case execute_after {
         True -> handle_eval(result, references)
@@ -338,13 +345,17 @@ fn do_load(reference) {
     |> result.replace_error(snag.new("Unable to decode source code.")),
   )
 
-  let #(exp, bindings) = j.infer(source, type_.Empty, 0, j.new_state())
+  let #(exp, bindings) =
+    j.infer(source, type_.Empty, dict.new(), 0, j.new_state())
   // io.debug(bindings)
   let #(_, type_info) = exp
   let #(res, typevar, eff, _hmm) = type_info
   io.debug(type_info)
   binding.resolve(typevar, bindings)
   |> debug.render_type
+  |> io.debug
+  binding.gen(typevar, 0, bindings)
+  |> io.debug
 
   let env = stdlib.env()
   let handlers = dict.new()
@@ -405,12 +416,12 @@ fn handle_next(result, effects, references) {
               effect.none(),
             )
           }
-        break.UndefinedVariable("#" <> reference) -> {
-          case dict.get(references, reference) {
-            Ok(value) -> todo as "return"
-            Error(Nil) -> todo as "load"
-          }
-        }
+        // break.UndefinedVariable("#" <> reference) -> {
+        //   case dict.get(references, reference) {
+        //     Ok(value) -> todo as "return"
+        //     Error(Nil) -> todo as "load"
+        //   }
+        // }
         reason -> #(
           Runner(Abort(break.reason_to_string(reason)), effects),
           effect.none(),

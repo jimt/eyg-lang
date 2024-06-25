@@ -112,7 +112,8 @@ pub fn information(state) {
   case parse(source(state)) {
     Ok(tree) -> {
       let #(tree, spans) = annotated.strip_annotation(tree)
-      let #(exp, bindings) = j.infer(tree, t.Empty, 0, j.new_state())
+      let #(exp, bindings) =
+        j.infer(tree, t.Empty, dict.new(), 0, j.new_state())
       let acc = annotated.strip_annotation(exp).1
       let acc =
         list.map(acc, fn(node) {
@@ -164,7 +165,7 @@ pub fn interpret(state) {
 pub fn compile(state) {
   case parse(source(state)) {
     Ok(tree) -> {
-      Ok(compile.to_js(tree))
+      Ok(compile.to_js(tree, dict.new()))
     }
     Error(reason) -> Error(reason)
   }

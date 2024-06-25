@@ -1,4 +1,5 @@
 import eyg/analysis/typ as t
+import eyg/compile
 import eyg/runtime/capture
 import eyg/runtime/cast
 import eyg/runtime/interpreter/runner as r
@@ -201,12 +202,10 @@ pub fn to_javascript() {
   #(type_, state.Arity1(do_to_javascript))
 }
 
-import eyg/compile
-
 pub fn do_to_javascript(term, meta, env, k) {
   let exp = capture.capture(term)
   let exp = e.add_annotation(exp, Nil)
-  Ok(#(state.V(v.Str(compile.to_js(exp))), env, k))
+  Ok(#(state.V(v.Str(compile.to_js(exp, dict.new()))), env, k))
 }
 
 // block needs squashing with row on the front

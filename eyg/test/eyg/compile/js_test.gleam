@@ -1,5 +1,6 @@
 import eyg/compile
 import eyg/parse
+import gleam/dict
 import gleam/dynamic
 import gleam/json
 import gleam/pair
@@ -12,7 +13,7 @@ fn test_compilation(source, js, evaled) {
     |> parse.from_string()
     |> should.be_ok()
     |> pair.first()
-    |> compile.to_js()
+    |> compile.to_js(dict.new())
   generated
   |> should.equal(js)
   generated
@@ -27,7 +28,7 @@ fn test_eval(source, evaled) {
     |> parse.from_string()
     |> should.be_ok()
     |> pair.first()
-    |> compile.to_js()
+    |> compile.to_js(dict.new())
   generated
   |> window.eval()
   |> should.be_ok()

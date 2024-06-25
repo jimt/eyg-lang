@@ -16,10 +16,11 @@ pub fn sections() {
   [
     #(
       h.p([], [text("whats the point")]),
-      "let question = \"What's your name?\"
+      "let { string } = #standard_library
+
 let run = (_) -> {
-  let answer = perform Ask(question)
-  perform Log(!string_append(\"Hello \", answer))
+  let answer = perform Ask(\"What's your name?\")
+  perform Log(string.append(\"Hello \", answer))
 }",
     ),
     #(

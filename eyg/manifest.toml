@@ -35,3 +35,4 @@ lustre = { version = "~> 4.0" }
 midas = { version = ">= 0.4.2 and < 1.0.0" }
 plinth = { version = ">= 0.4.6 and < 1.0.0" }
 simplifile = { version = "~> 1.0" }
+snag = { version = ">= 0.3.0 and < 1.0.0"}

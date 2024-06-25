@@ -118,14 +118,7 @@ pub fn runner(state) {
                       a.class("border rounded"),
                       a.value(value),
                       e.on_input(fn(value) {
-                        state.NewRunner(state.Runner(
-                          state.Suspended(
-                            state.TextInput(question, value),
-                            env,
-                            k,
-                          ),
-                          effects,
-                        ))
+                        state.UpdateSuspend(state.TextInput(question, value))
                       }),
                     ]),
                   ],
@@ -187,7 +180,7 @@ fn logs1(logs) {
           h.span([a.class("bg-gray-700 text-white text-right px-2")], [
             text("Ask"),
           ]),
-          h.span([a.class("px-1")], [text(question), text("?: "), text(answer)]),
+          h.span([a.class("px-1")], [text(question), text(": "), text(answer)]),
         ]
         state.Random(_value) -> [
           h.span([a.class("bg-gray-700 text-white text-right px-2")], [

@@ -1,6 +1,5 @@
 import eyg/analysis/inference/levels_j/contextual as j
 import eyg/analysis/type_/binding
-import eyg/analysis/type_/binding/debug
 import eyg/analysis/type_/isomorphic as type_
 import eyg/parse
 import eyg/runtime/break
@@ -73,36 +72,34 @@ pub fn init(_) {
   let sections = content.sections()
   let refs = dict.new()
 
+  let state = State(refs, sections, None)
+  #(state, effect.from(load_new_references(sections, refs, _)))
+}
+
+fn load_new_references(sections, refs, d) {
   let new_refs =
     list.flat_map(sections, fn(section) {
       let #(_context, code) = section
       find_new_references(code, refs)
     })
 
-  let state = State(refs, sections, None)
-
-  #(
-    state,
-    effect.from(fn(d) {
-      list.map(new_refs, fn(reference) {
-        let task = do_load(reference)
-        promise.map(browser_run(task), fn(result) {
-          case result {
-            Ok(value) -> {
-              d(LoadedReference(reference, value, True))
-            }
-            Error(reason) -> io.println(snag.pretty_print(reason))
-          }
-        })
-      })
-      Nil
-    }),
-  )
+  list.map(new_refs, fn(reference) {
+    let task = do_load(reference)
+    promise.map(browser_run(task), fn(result) {
+      case result {
+        Ok(value) -> {
+          d(LoadedReference(reference, value, True))
+        }
+        Error(reason) -> io.println(snag.pretty_print(reason))
+      }
+    })
+  })
+  Nil
 }
 
 pub type Message {
   EditCode(sections: List(#(Element(Message), String)))
-  NewRunner(Runner)
+  UpdateSuspend(For)
   Run(#(Expression(#(Int, Int)), #(Int, Int)))
   Unsuspend(Effect)
   // execute after assumes boolean information probably should be list of args and/or reference to possible effects
@@ -122,7 +119,7 @@ type Value =
 fn eval(source: #(Expression(#(Int, Int)), #(Int, Int)), references) {
   let source = annotated.map_annotation(source, fn(_) { Nil })
   let handlers = dict.new()
-  let env = stdlib.env()
+  let env = istate.Env(..stdlib.env(), references: references)
   handle_eval(r.execute(source, env, handlers), references)
 }
 
@@ -147,16 +144,12 @@ fn handle_eval(result, references) {
 
 pub fn information(source, references) {
   let #(tree, spans) = annotated.strip_annotation(source)
-  let #(exp, bindings) =
+  let #(exp, _bindings) =
     j.infer(tree, type_.Empty, references, 0, j.new_state())
   let acc = annotated.strip_annotation(exp).1
   let acc =
     list.map(acc, fn(node) {
-      let #(error, typed, effect, env) = node
-      let typed = binding.resolve(typed, bindings)
-
-      let effect = binding.resolve(effect, bindings)
-      // #(error, typed, effect)
+      let #(error, _typed, _effect, _env) = node
       error
     })
   let assert Ok(zipped) = list.strict_zip(spans, acc)
@@ -165,7 +158,7 @@ pub fn information(source, references) {
 
 pub fn type_errors(assigns, final, references) {
   let source = case final, assigns {
-    None, [#(label, _, span), ..] -> #(annotated.Variable(label), #(0, 0))
+    None, [#(label, _, span), ..] -> #(annotated.Variable(label), span)
     None, [] -> #(annotated.Empty, #(0, 0))
     Some(other), _ -> other
   }
@@ -187,7 +180,7 @@ pub fn type_errors(assigns, final, references) {
       let #(#(start_b, _end), _reason) = b
       int.compare(start_a, start_b)
     })
-  let #(max, errors) =
+  let #(_max, errors) =
     list.map_fold(errors, 0, fn(max, value) {
       let #(#(start, end), reason) = value
       let #(max, span) = case start {
@@ -235,43 +228,15 @@ pub fn update(state, message) {
   let State(references: references, ..) = state
   case message {
     EditCode(sections) -> {
-      // TODO fix the fact only works in the last section
-      let assert [s, ..] = list.reverse(sections)
-      let code = s.1
-      let used = case parse.block_from_string(code) {
-        Ok(#(#(assigns, exp), _rest)) -> {
-          let exp =
-            rollup_block(
-              option.unwrap(exp, #(annotated.Empty, #(0, 0))),
-              assigns,
-            )
-          let references = annotated.list_builtins(exp)
-          references
-        }
-
-        Error(_) -> []
-      }
-
       let state = State(..state, sections: sections)
-      #(
-        state,
-        effect.from(fn(d) {
-          list.map(used, fn(reference) {
-            promise.map(browser_run(do_load(reference)), fn(result) {
-              1
-              io.debug("=====")
-              // let #(tree, spans) = annotated.strip_annotation(source)
-
-              // recursive lookup
-              io.debug("bindings")
-            })
-          })
-          Nil
-        }),
-      )
+      #(state, effect.from(load_new_references(sections, references, _)))
     }
-    NewRunner(running) -> {
-      let state = State(..state, running: Some(running))
+    UpdateSuspend(for) -> {
+      let State(running: running, ..) = state
+      let assert Some(Runner(Suspended(_, env, k), effects)) = running
+
+      let state =
+        State(..state, running: Some(Runner(Suspended(for, env, k), effects)))
       #(state, effect.none())
     }
     Run(source) -> {
@@ -419,7 +384,7 @@ fn do_load(reference) {
 
 fn handle_next(result, effects, references) {
   case result {
-    Error(#(reason, meta, env, k)) ->
+    Error(#(reason, _meta, env, k)) ->
       case reason {
         break.UnhandledEffect(label, lift) ->
           case label {
@@ -462,7 +427,7 @@ fn handle_next(result, effects, references) {
               )
             }
 
-            other -> #(
+            _other -> #(
               Runner(Abort(break.reason_to_string(reason)), effects),
               effect.none(),
             )
@@ -492,7 +457,7 @@ pub fn browser_run(task) {
       io.println(message)
       browser_run(resume(Ok(Nil)))
     }
-    _ -> todo as "unsupported"
+    _ -> panic as "unsupported effect in browser_run"
   }
 }
 

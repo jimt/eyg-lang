@@ -13,7 +13,7 @@ import gleam/bit_array
 import gleam/dict.{type Dict}
 import gleam/fetch
 import gleam/float
-import gleam/http/request
+import gleam/http/request.{type Request}
 import gleam/int
 import gleam/io
 import gleam/list
@@ -21,6 +21,7 @@ import gleam/option.{type Option, None, Some}
 import gleam/pair
 import gleam/result
 import gleam/uri
+import harness/effect as impls
 import harness/stdlib
 import intro/content
 import lustre/effect
@@ -47,6 +48,8 @@ pub type For {
   Geo
   Timer(duration: Int)
   TextInput(question: String, response: String)
+  // TODO change request to bitarray
+  Fetch(request: Request(String))
 }
 
 pub type Handle {
@@ -438,6 +441,21 @@ fn handle_next(result, effects, references) {
                   |> promise.map(fn(result) {
                     d(Unsuspend(Geolocation(result)))
                   })
+                  Nil
+                }),
+              )
+            }
+            "Fetch" -> {
+              io.debug(lift)
+              let assert Ok(request) =
+                impls.as_request(lift)
+                |> io.debug
+              #(
+                Runner(Suspended(Fetch(request), env, k), effects),
+                effect.from(fn(d) {
+                  let v = impls.do_fetch(lift)
+                    d(Unsuspend(Fetched(v)))
+                  
                   Nil
                 }),
               )

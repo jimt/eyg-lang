@@ -8,6 +8,7 @@ import eyg/text/text
 import eygir/annotated
 import gleam/dict
 import gleam/dynamic
+import gleam/http/request
 import gleam/int
 import gleam/io
 import gleam/list
@@ -15,6 +16,7 @@ import gleam/listx
 import gleam/option.{None, Some}
 import gleam/pair
 import gleam/string
+import gleam/uri
 import intro/state
 import lustre/attribute as a
 import lustre/element.{fragment, none, text} as _
@@ -129,6 +131,12 @@ pub fn runner(state) {
             state.Suspended(state.Loading(reference), _, _) ->
               h.div([a.class("border-4 border-gray-500 px-6 py-2")], [
                 h.div([], [text("Loading: #" <> reference)]),
+              ])
+            state.Suspended(state.Fetch(request), _, _) ->
+              h.div([a.class("border-4 border-gray-500 px-6 py-2")], [
+                h.div([], [
+                  text("Fetching: #" <> uri.to_string(request.to_uri(request))),
+                ]),
               ])
             state.Suspended(state.Timer(remaining), _, _) ->
               h.div([a.class("border-4 border-blue-500 px-6 py-2")], [

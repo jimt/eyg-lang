@@ -110,5 +110,37 @@ let run = (_) -> {
   tokenise([],\"\\\"true\\\" : false\")
 } ",
     ),
+    #(
+      h.div([], [text("parseing")]),
+      "let string = (k, tokens) -> {
+  !uncons(tokens,
+    (_) -> { Error(UnexpectedEnd({})) },
+    (token, rest) -> { match token {
+      String(raw) -> { k(raw, rest) }
+      |(_) -> { Error(UnexpectedToken({})) }
+    } }
+  )
+}
+
+let parse = (decoder, raw) -> {
+  decoder((out,_rest) -> { out }, tokenise(raw))
+}
+
+let run = (_) -> {
+  parse(string, \"[]\")
+}",
+    ),
+    #(
+      h.div([], [text("HTTP")]),
+      "let { http, mime } = #standard_library
+
+let run = (_) -> {
+  let request = http.get(\"api.sunrisesunset.io\")
+  let request = {path: \"/json?lat=38.907192&lng=-77.036873\", ..request}
+  let response = perform Fetch(request)
+  
+  response
+}",
+    ),
   ]
 }

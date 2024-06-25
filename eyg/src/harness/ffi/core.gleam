@@ -141,7 +141,9 @@ pub fn lib() {
   |> extend("string_length", string.length())
   |> extend("pop_grapheme", string.pop_grapheme())
   |> extend("string_to_binary", string.to_binary())
+  |> extend("pop_prefix", string.pop_prefix())
   // list
+  |> extend("uncons", linked_list.uncons())
   |> extend("list_pop", linked_list.pop())
   |> extend("list_fold", linked_list.fold())
   |> extend("eval", eval())

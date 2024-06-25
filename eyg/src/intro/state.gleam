@@ -45,13 +45,13 @@ pub type Effect {
 
 pub type For {
   Geo
+  Timer(duration: Int)
+  TextInput(question: String, response: String)
 }
 
 pub type Handle {
   Abort(String)
   Loading(reference: String, Env(Nil), Stack(Nil))
-  Waiting(remaining: Int, Env(Nil), Stack(Nil))
-  Asking(question: String, value: String, Env(Nil), Stack(Nil))
   Suspended(for: For, Env(Nil), Stack(Nil))
   Done(Value)
 }
@@ -103,9 +103,7 @@ pub type Message {
   EditCode(sections: List(#(Element(Message), String)))
   NewRunner(Runner)
   Run(#(Expression(#(Int, Int)), #(Int, Int)))
-  Resume(Value, Env(Nil), Stack(Nil), List(Effect))
   Unsuspend(Effect)
-  TimerComplete
   // execute after assumes boolean information probably should be list of args and/or reference to possible effects
   LoadedReference(
     reference: String,
@@ -292,57 +290,12 @@ pub fn update(state, message) {
       let state = State(..state, running: Some(run))
       #(state, effect)
     }
-    Resume(value, env, k, effects) -> {
-      let result = r.loop(istate.step(istate.V(value), env, k))
-      let #(run, effect) = handle_next(result, effects, references)
-      let state = State(..state, running: Some(run))
-      #(state, effect)
-    }
+
     Unsuspend(effect) -> {
       let State(running: running, ..) = state
       let assert Some(Runner(Suspended(_, env, k), effects)) = running
 
-      let value = case effect {
-        Geolocation(Ok(geolocation.GeolocationPosition(
-          latitude: latitude,
-          longitude: longitude,
-          altitude: altitude,
-          accuracy: accuracy,
-          altitude_accuracy: altitude_accuracy,
-          heading: heading,
-          speed: speed,
-          timestamp: timestamp,
-        ))) -> {
-          v.ok(
-            v.Record([
-              #("latitude", v.Integer(float.truncate(latitude))),
-              #("longitude", v.Integer(float.truncate(longitude))),
-              #(
-                "altitude",
-                v.option(altitude, fn(x) { v.Integer(float.truncate(x)) }),
-              ),
-              #("accuracy", v.Integer(float.truncate(accuracy))),
-              #(
-                "altitude_accuracy",
-                v.option(altitude_accuracy, fn(x) {
-                  v.Integer(float.truncate(x))
-                }),
-              ),
-              #(
-                "heading",
-                v.option(heading, fn(x) { v.Integer(float.truncate(x)) }),
-              ),
-              #(
-                "speed",
-                v.option(speed, fn(x) { v.Integer(float.truncate(x)) }),
-              ),
-              #("timestamp", v.Integer(float.truncate(timestamp))),
-            ]),
-          )
-        }
-        Geolocation(Error(reason)) -> v.error(v.Str(reason))
-        _ -> panic as "why did this come in as an effect"
-      }
+      let value = reply_value(effect)
       let result = r.loop(istate.step(istate.V(value), env, k))
       let effects = [effect, ..effects]
       let #(run, effect) = handle_next(result, effects, references)
@@ -350,16 +303,7 @@ pub fn update(state, message) {
       let state = State(..state, running: Some(run))
       #(state, effect)
     }
-    TimerComplete -> {
-      let State(running: running, ..) = state
-      let assert Some(Runner(Waiting(remaining, env, k), effects)) = running
-      let result = r.loop(istate.step(istate.V(v.unit), env, k))
-      let effects = [Waited(remaining), ..effects]
-      let #(run, effect) = handle_next(result, effects, references)
 
-      let state = State(..state, running: Some(run))
-      #(state, effect)
-    }
     LoadedReference(reference, value, execute_after) -> {
       let State(references: references, running: running, ..) = state
       io.println("Added reference: " <> reference)
@@ -384,6 +328,48 @@ pub fn update(state, message) {
       let state = State(..state, running: None)
       #(state, effect.none())
     }
+  }
+}
+
+fn reply_value(effect) {
+  case effect {
+    Geolocation(Ok(geolocation.GeolocationPosition(
+      latitude: latitude,
+      longitude: longitude,
+      altitude: altitude,
+      accuracy: accuracy,
+      altitude_accuracy: altitude_accuracy,
+      heading: heading,
+      speed: speed,
+      timestamp: timestamp,
+    ))) -> {
+      v.ok(
+        v.Record([
+          #("latitude", v.Integer(float.truncate(latitude))),
+          #("longitude", v.Integer(float.truncate(longitude))),
+          #(
+            "altitude",
+            v.option(altitude, fn(x) { v.Integer(float.truncate(x)) }),
+          ),
+          #("accuracy", v.Integer(float.truncate(accuracy))),
+          #(
+            "altitude_accuracy",
+            v.option(altitude_accuracy, fn(x) { v.Integer(float.truncate(x)) }),
+          ),
+          #(
+            "heading",
+            v.option(heading, fn(x) { v.Integer(float.truncate(x)) }),
+          ),
+          #("speed", v.option(speed, fn(x) { v.Integer(float.truncate(x)) })),
+          #("timestamp", v.Integer(float.truncate(timestamp))),
+        ]),
+      )
+    }
+    Geolocation(Error(reason)) -> v.error(v.Str(reason))
+    Asked(_question, answer) -> v.Str(answer)
+    Random(_) -> todo
+    Waited(_duration) -> v.unit
+    Log(_) -> panic as "log can be dealt with synchronously"
   }
 }
 
@@ -447,7 +433,10 @@ fn handle_next(result, effects, references) {
           case label {
             "Ask" -> {
               let assert Ok(question) = cast.as_string(lift)
-              #(Runner(Asking(question, "", env, k), effects), effect.none())
+              #(
+                Runner(Suspended(TextInput(question, ""), env, k), effects),
+                effect.none(),
+              )
             }
             "Log" -> {
               let assert Ok(message) = cast.as_string(lift)
@@ -456,12 +445,12 @@ fn handle_next(result, effects, references) {
               |> handle_next(effects, references)
             }
             "Wait" -> {
-              let assert Ok(remaining) = cast.as_integer(lift)
+              let assert Ok(duration) = cast.as_integer(lift)
               #(
-                Runner(Waiting(remaining, env, k), effects),
+                Runner(Suspended(Timer(duration), env, k), effects),
                 effect.from(fn(d) {
-                  global.set_timeout(remaining, fn() {
-                    d(TimerComplete)
+                  global.set_timeout(duration, fn() {
+                    d(Unsuspend(Waited(duration)))
                     Nil
                   })
                   Nil

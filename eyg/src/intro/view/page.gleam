@@ -114,25 +114,22 @@ pub fn runner(state) {
           case handle {
             state.Abort(message) ->
               h.div([a.class("bg-red-300 p-10")], [text(message)])
-            state.Asking(question, value, env, k) ->
+            state.Suspended(state.TextInput(question, value), env, k) ->
               h.div([a.class("border-4 border-green-500 px-6 py-2")], [
                 h.div([], [text(question)]),
                 h.form(
-                  [
-                    e.on_submit(
-                      state.Resume(v.Str(value), env, k, [
-                        state.Asked(question, value),
-                        ..effects
-                      ]),
-                    ),
-                  ],
+                  [e.on_submit(state.Unsuspend(state.Asked(question, value)))],
                   [
                     h.input([
                       a.class("border rounded"),
                       a.value(value),
                       e.on_input(fn(value) {
                         state.NewRunner(state.Runner(
-                          state.Asking(question, value, env, k),
+                          state.Suspended(
+                            state.TextInput(question, value),
+                            env,
+                            k,
+                          ),
                           effects,
                         ))
                       }),
@@ -144,11 +141,11 @@ pub fn runner(state) {
               h.div([a.class("border-4 border-gray-500 px-6 py-2")], [
                 h.div([], [text("Loading: #" <> reference)]),
               ])
-            state.Waiting(remaining, _, _) ->
+            state.Suspended(state.Timer(remaining), _, _) ->
               h.div([a.class("border-4 border-blue-500 px-6 py-2")], [
                 h.div([], [text("Waiting " <> int.to_string(remaining))]),
               ])
-            state.Suspended(_, _, _) ->
+            state.Suspended(state.Geo, _, _) ->
               h.div([a.class("border-4 border-blue-500 px-6 py-2")], [
                 h.div([], [text("Finding location ")]),
               ])

@@ -69,8 +69,34 @@ pub type State {
 }
 
 pub fn init(_) {
-  let state = State(dict.new(), content.sections(), None)
-  #(state, effect.none())
+  let sections = content.sections()
+  let refs = dict.new()
+
+  let new_refs =
+    list.flat_map(sections, fn(section) {
+      let #(_context, code) = section
+      find_new_references(code, refs)
+    })
+
+  let state = State(refs, sections, None)
+
+  #(
+    state,
+    effect.from(fn(d) {
+      list.map(new_refs, fn(reference) {
+        let task = do_load(reference)
+        promise.map(browser_run(task), fn(result) {
+          case result {
+            Ok(value) -> {
+              d(LoadedReference(reference, value, True))
+            }
+            Error(reason) -> io.println(snag.pretty_print(reason))
+          }
+        })
+      })
+      Nil
+    }),
+  )
 }
 
 pub type Message {
@@ -84,6 +110,7 @@ pub type Message {
   LoadedReference(
     reference: String,
     value: #(Value, binding.Poly),
+    // TODO remove when suspense state has all the inforation
     execute_after: Bool,
   )
   CloseRunner
@@ -119,24 +146,8 @@ fn handle_eval(result, references) {
                 references,
               )
             Error(Nil) -> {
-              #(
-                Runner(Loading(reference, env, k), []),
-                effect.from(fn(d) {
-                  let task = do_load(reference)
-                  promise.map(browser_run(task), fn(result) {
-                    case result {
-                      Ok(value) -> {
-                        // need reference here to handle nested reference loading
-                        todo as "shouldnt need to load reference"
-                        // d(LoadedReference(reference, value, True))
-                      }
-                      Error(reason) -> io.println(snag.pretty_print(reason))
-                    }
-                  })
-
-                  Nil
-                }),
-              )
+              // reference should already be part of loading
+              #(Runner(Loading(reference, env, k), []), effect.none())
             }
           }
         }
@@ -146,10 +157,10 @@ fn handle_eval(result, references) {
   }
 }
 
-pub fn information(source) {
+pub fn information(source, references) {
   let #(tree, spans) = annotated.strip_annotation(source)
   let #(exp, bindings) =
-    j.infer(tree, type_.Empty, dict.new(), 0, j.new_state())
+    j.infer(tree, type_.Empty, references, 0, j.new_state())
   let acc = annotated.strip_annotation(exp).1
   let acc =
     list.map(acc, fn(node) {
@@ -164,6 +175,43 @@ pub fn information(source) {
   zipped
 }
 
+pub fn type_errors(assigns, final, references) {
+  let source = case final, assigns {
+    None, [#(label, _, span), ..] -> #(annotated.Variable(label), #(0, 0))
+    None, [] -> #(annotated.Empty, #(0, 0))
+    Some(other), _ -> other
+  }
+  let source = rollup_block(source, assigns)
+  let errors =
+    information(source, references)
+    |> list.filter_map(fn(p) {
+      let #(span, error) = p
+      case error {
+        Ok(_) -> Error(Nil)
+        Error(reason) -> Ok(#(span, reason))
+      }
+    })
+  // TODO move to text these highlight functions
+
+  let errors =
+    list.sort(errors, fn(a, b) {
+      let #(#(start_a, _end), _reason) = a
+      let #(#(start_b, _end), _reason) = b
+      int.compare(start_a, start_b)
+    })
+  let #(max, errors) =
+    list.map_fold(errors, 0, fn(max, value) {
+      let #(#(start, end), reason) = value
+      let #(max, span) = case start {
+        _ if max <= start -> #(end, #(start, end))
+        _ if max <= end -> #(end, #(max, end))
+        _ -> #(max, #(max, max))
+      }
+      #(max, #(span, reason))
+    })
+  errors
+}
+
 // expects reversed
 pub fn rollup_block(exp, assigns) {
   case assigns {
@@ -171,6 +219,28 @@ pub fn rollup_block(exp, assigns) {
     [#(label, value, span), ..assigns] ->
       rollup_block(#(annotated.Let(label, value, exp), span), assigns)
   }
+}
+
+fn used_references(code) {
+  case parse.block_from_string(code) {
+    Ok(#(#(assigns, exp), _rest)) -> {
+      let tail = option.unwrap(exp, #(annotated.Empty, #(0, 0)))
+      let exp = rollup_block(tail, assigns)
+      annotated.list_builtins(exp)
+    }
+    Error(_) -> []
+  }
+  |> list.filter_map(fn(identifier) {
+    case identifier {
+      "#" <> ref -> Ok(ref)
+      _ -> Error(Nil)
+    }
+  })
+}
+
+fn find_new_references(code, existing) {
+  let used = used_references(code)
+  list.filter(used, fn(ref) { !dict.has_key(existing, ref) })
 }
 
 pub fn update(state, message) {
@@ -188,7 +258,6 @@ pub fn update(state, message) {
               assigns,
             )
           let references = annotated.list_builtins(exp)
-          io.debug(#(references, "fed"))
           references
         }
 
@@ -292,18 +361,22 @@ pub fn update(state, message) {
     }
     LoadedReference(reference, value, execute_after) -> {
       let State(references: references, running: running, ..) = state
+      io.println("Added reference: " <> reference)
       let references = dict.insert(references, reference, value)
 
-      let assert Some(Runner(Loading(reference, env, k), effects)) = running
-
-      let #(value, _) = value
-      let result = r.loop(istate.step(istate.V(value), env, k))
-      let #(run, effect) = case execute_after {
-        True -> handle_eval(result, references)
-        False -> handle_next(result, effects, references)
+      let #(run, effect) = case running {
+        Some(Runner(Loading(r, env, k), effects)) -> {
+          let #(value, _) = value
+          let result = r.loop(istate.step(istate.V(value), env, k))
+          let #(run, effect) = case execute_after {
+            True -> handle_eval(result, references)
+            False -> handle_next(result, effects, references)
+          }
+          #(Some(run), effect)
+        }
+        other -> #(other, effect.none())
       }
-
-      let state = State(..state, references: references, running: Some(run))
+      let state = State(..state, references: references, running: run)
       #(state, effect)
     }
     CloseRunner -> {
@@ -315,7 +388,7 @@ pub fn update(state, message) {
 
 fn do_load(reference) {
   use file <- t.try(case reference {
-    "#standard_library" -> Ok("std.json")
+    "standard_library" -> Ok("std.json")
     _ -> Error(snag.new("no file for reference: " <> reference))
   })
   let assert Ok(uri) = uri.parse("http://localhost:8080/saved/" <> file)
@@ -329,7 +402,6 @@ fn do_load(reference) {
     200 -> Ok(response.body)
     other -> Error(snag.new("Bad response status: " <> int.to_string(other)))
   })
-  io.debug("decoded")
   use body <- t.try(
     bit_array.to_string(body)
     |> result.replace_error(snag.new("Not utf8 formatted.")),
@@ -344,18 +416,15 @@ fn do_load(reference) {
     decode.from_json(body)
     |> result.replace_error(snag.new("Unable to decode source code.")),
   )
+  io.println("Decoded source for reference: " <> reference)
 
   let #(exp, bindings) =
     j.infer(source, type_.Empty, dict.new(), 0, j.new_state())
-  // io.debug(bindings)
+
   let #(_, type_info) = exp
-  let #(res, typevar, eff, _hmm) = type_info
-  io.debug(type_info)
-  binding.resolve(typevar, bindings)
-  |> debug.render_type
-  |> io.debug
-  binding.gen(typevar, 0, bindings)
-  |> io.debug
+  let #(_res, typevar, _eff, _hmm) = type_info
+
+  let poly = binding.gen(typevar, 0, bindings)
 
   let env = stdlib.env()
   let handlers = dict.new()
@@ -366,7 +435,7 @@ fn do_load(reference) {
     |> result.replace_error(snag.new("Unable to evaluate reference.")),
   )
 
-  t.done(value)
+  t.done(#(value, poly))
 }
 
 fn handle_next(result, effects, references) {

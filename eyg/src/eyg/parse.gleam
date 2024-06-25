@@ -2,8 +2,6 @@ import eyg/parse/lexer
 import eyg/parse/parser
 import eyg/parse/token
 import eygir/annotated as e
-import gleam/io
-import gleam/list
 import gleam/option.{None, Some}
 import gleam/result
 

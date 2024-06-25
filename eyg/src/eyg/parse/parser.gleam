@@ -13,7 +13,7 @@ pub type Reason {
 }
 
 pub fn parse(tokens) {
-  io.debug("dont use parse but tokens direct as it panics")
+  io.println("dont use parse but tokens direct as it panics")
   case expression(tokens) {
     Ok(#(e, [])) -> Ok(e)
     Ok(#(_, leftover)) -> {
@@ -131,7 +131,6 @@ pub fn block(tokens) {
           Ok(#(exp, rest))
         }
         Error(UnexpectEnd) -> {
-          io.debug(value)
           let span = #(start, start)
           let then = #(e.Vacant("__Block__"), #(0, 0))
           let exp = case pattern {

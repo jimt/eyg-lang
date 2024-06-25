@@ -1,5 +1,6 @@
 import eygir/expression as e
 import gleam/dynamic
+import gleam/io
 import gleam/list
 
 pub type Node(m) =
@@ -174,6 +175,6 @@ fn do_list_builtins(exp, found) {
       let found = do_list_builtins(arg, found)
       do_list_builtins(func, found)
     }
-    _ -> []
+    _ -> found
   }
 }

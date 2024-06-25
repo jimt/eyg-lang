@@ -219,7 +219,7 @@ pub fn do_infer(source, env, eff, refs: dict.Dict(_, _), level, bindings) {
     e.Shallow(label) ->
       prim(handle(label), env, eff, level, bindings, a.Shallow(label))
     e.Builtin(identifier) ->
-      case builtin(identifier) {
+      case builtin(identifier, refs) {
         Ok(poly) -> prim(poly, env, eff, level, bindings, a.Builtin(identifier))
         Error(Nil) -> {
           let #(type_, bindings) = binding.mono(level, bindings)
@@ -321,8 +321,11 @@ pub fn handle(label) {
 }
 
 // equal fn should be open in fn that takes boolean and other union
-fn builtin(name) {
-  list.key_find(builtins(), name)
+fn builtin(name, refs) {
+  case name {
+    "#" <> ref -> dict.get(refs, ref)
+    _ -> list.key_find(builtins(), name)
+  }
 }
 
 pub fn builtins() {

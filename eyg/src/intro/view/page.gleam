@@ -9,6 +9,7 @@ import eyg/text/highlight
 import eyg/text/text
 import eygir/annotated
 import gleam/bit_array
+import gleam/dict
 import gleam/dynamic
 import gleam/int
 import gleam/io
@@ -209,7 +210,8 @@ fn logs1(logs) {
 }
 
 pub fn content(state) {
-  let state.State(sections: sections, ..) = state
+  let state.State(sections: sections, references: references, ..) = state
+  let references = dict.map_values(references, fn(_, v) { pair.second(v) })
   h.div([a.class("relative vstack")], [
     h.div([a.class("cover expand")], [
       h.h1([a.class("p-4 text-6xl")], [text("Eyg")]),
@@ -231,7 +233,7 @@ pub fn content(state) {
       //     ],
       //   ),
       // ]),
-      h.div([a.class("")], iterate(sections, [], section)),
+      h.div([a.class("")], iterate(sections, [], section(references))),
     ]),
     // bad things with min h 100% in relative maybe fixed is better than sticky
     // sticky works as long as there is content
@@ -256,80 +258,45 @@ fn iterate(items, initial, func) {
   do_iterate(items, func, [], initial, [])
 }
 
-fn type_errors(assigns, final) {
-  let source = case final, assigns {
-    None, [#(label, _, span), ..] -> #(annotated.Variable(label), #(0, 0))
-    None, [] -> #(annotated.Empty, #(0, 0))
-    Some(other), _ -> other
-  }
-  let source = state.rollup_block(source, assigns)
-  let errors =
-    state.information(source)
-    |> list.filter_map(fn(p) {
-      let #(span, error) = p
-      case error {
-        Ok(_) -> Error(Nil)
-        Error(reason) -> Ok(#(span, reason))
-      }
-    })
-  // TODO move to text these highlight functions
+fn section(references) {
+  fn(previous, section, post, state) {
+    let #(context, code) = section
 
-  let errors =
-    list.sort(errors, fn(a, b) {
-      let #(#(start_a, _end), _reason) = a
-      let #(#(start_b, _end), _reason) = b
-      int.compare(start_a, start_b)
-    })
-  let #(max, errors) =
-    list.map_fold(errors, 0, fn(max, value) {
-      let #(#(start, end), reason) = value
-      let #(max, span) = case start {
-        _ if max <= start -> #(end, #(start, end))
-        _ if max <= end -> #(end, #(max, end))
-        _ -> #(max, #(max, max))
-      }
-      #(max, #(span, reason))
-    })
-  errors
-}
-
-fn section(previous, section, post, state) {
-  let #(context, code) = section
-
-  let on_update = fn(new) {
-    let #(content, _code) = section
-    let section = #(content, new)
-    state.EditCode(listx.gather_around(previous, section, post))
-  }
-
-  // state = previous assignments
-
-  let #(can_run, errors, state) = case parse.block_from_string(code) {
-    Ok(#(#(assigns, final), _remaining_tokens)) -> {
-      let errors = type_errors(assigns, final)
-
-      let assigns = list.append(assigns, state)
-      let #(exp, target) = case final, assigns {
-        None, [#(label, _, span), ..] -> #(
-          #(annotated.Variable(label), #(0, 0)),
-          Some(span),
-        )
-        None, [] -> #(#(annotated.Empty, #(0, 0)), None)
-        Some(other), _ -> #(other, None)
-      }
-      let target =
-        option.map(target, fn(span) {
-          let #(start, _) = span
-          text.lines_positions(code)
-          |> list.take_while(fn(x) { x < start })
-          |> list.length
-        })
-      let exp = state.rollup_block(exp, assigns)
-      #(Ok(#(exp, target)), errors, assigns)
+    let on_update = fn(new) {
+      let #(content, _code) = section
+      let section = #(content, new)
+      state.EditCode(listx.gather_around(previous, section, post))
     }
-    Error(reason) -> #(Error(reason), [], state)
+
+    // state = previous assignments
+
+    let #(can_run, errors, state) = case parse.block_from_string(code) {
+      Ok(#(#(assigns, final), _remaining_tokens)) -> {
+        let errors = state.type_errors(assigns, final, references)
+
+        let assigns = list.append(assigns, state)
+        let #(exp, target) = case final, assigns {
+          None, [#(label, _, span), ..] -> #(
+            #(annotated.Variable(label), #(0, 0)),
+            Some(span),
+          )
+          None, [] -> #(#(annotated.Empty, #(0, 0)), None)
+          Some(other), _ -> #(other, None)
+        }
+        let target =
+          option.map(target, fn(span) {
+            let #(start, _) = span
+            text.lines_positions(code)
+            |> list.take_while(fn(x) { x < start })
+            |> list.length
+          })
+        let exp = state.rollup_block(exp, assigns)
+        #(Ok(#(exp, target)), errors, assigns)
+      }
+      Error(reason) -> #(Error(reason), [], state)
+    }
+    #(render_section(context, code, on_update, can_run, errors), state)
   }
-  #(render_section(context, code, on_update, can_run, errors), state)
 }
 
 fn render_section(context, code, on_update, can_run, errors) {

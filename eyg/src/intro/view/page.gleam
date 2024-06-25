@@ -131,7 +131,7 @@ pub fn runner(state) {
                   ],
                 ),
               ])
-            state.Loading(reference, _, _) ->
+            state.Suspended(state.Loading(reference), _, _) ->
               h.div([a.class("border-4 border-gray-500 px-6 py-2")], [
                 h.div([], [text("Loading: #" <> reference)]),
               ])

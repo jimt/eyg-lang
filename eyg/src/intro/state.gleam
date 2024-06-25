@@ -19,6 +19,7 @@ import gleam/int
 import gleam/io
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/pair
 import gleam/result
 import gleam/uri
 import harness/stdlib
@@ -44,6 +45,7 @@ pub type Effect {
 }
 
 pub type For {
+  Loading(reference: String)
   Geo
   Timer(duration: Int)
   TextInput(question: String, response: String)
@@ -51,7 +53,6 @@ pub type For {
 
 pub type Handle {
   Abort(String)
-  Loading(reference: String, Env(Nil), Stack(Nil))
   Suspended(for: For, Env(Nil), Stack(Nil))
   Done(Value)
 }
@@ -126,30 +127,18 @@ fn eval(source: #(Expression(#(Int, Int)), #(Int, Int)), references) {
 }
 
 fn handle_eval(result, references) {
+  let env = istate.Env(..stdlib.env(), references: references)
   case result {
     Ok(f) -> {
-      handle_next(
-        r.resume(f, [v.unit], stdlib.env(), dict.new()),
-        [],
-        references,
-      )
+      handle_next(r.resume(f, [v.unit], env, dict.new()), [], references)
     }
-    Error(#(reason, meta, env, k)) -> {
+    Error(#(reason, _meta, env, k)) -> {
       case reason {
-        break.UndefinedVariable("#" <> reference) -> {
-          // TODO this should get removed
-          case dict.get(references, reference) {
-            Ok(#(value, _)) ->
-              handle_eval(
-                r.loop(istate.step(istate.V(value), env, k)),
-                references,
-              )
-            Error(Nil) -> {
-              // reference should already be part of loading
-              #(Runner(Loading(reference, env, k), []), effect.none())
-            }
-          }
-        }
+        break.UndefinedVariable("#" <> reference) -> #(
+          Runner(Suspended(Loading(reference), env, k), []),
+          effect.none(),
+        )
+
         _ -> #(Runner(Abort(break.reason_to_string(reason)), []), effect.none())
       }
     }
@@ -286,6 +275,7 @@ pub fn update(state, message) {
       #(state, effect.none())
     }
     Run(source) -> {
+      let references = dict.map_values(references, fn(_, v) { pair.first(v) })
       let #(run, effect) = eval(source, references)
       let state = State(..state, running: Some(run))
       #(state, effect)
@@ -310,9 +300,11 @@ pub fn update(state, message) {
       let references = dict.insert(references, reference, value)
 
       let #(run, effect) = case running {
-        Some(Runner(Loading(r, env, k), effects)) -> {
+        Some(Runner(Suspended(Loading(r), env, k), effects)) if r == reference -> {
           let #(value, _) = value
           let result = r.loop(istate.step(istate.V(value), env, k))
+          let references =
+            dict.map_values(references, fn(_, v) { pair.first(v) })
           let #(run, effect) = case execute_after {
             True -> handle_eval(result, references)
             False -> handle_next(result, effects, references)
@@ -475,12 +467,6 @@ fn handle_next(result, effects, references) {
               effect.none(),
             )
           }
-        // break.UndefinedVariable("#" <> reference) -> {
-        //   case dict.get(references, reference) {
-        //     Ok(value) -> todo as "return"
-        //     Error(Nil) -> todo as "load"
-        //   }
-        // }
         reason -> #(
           Runner(Abort(break.reason_to_string(reason)), effects),
           effect.none(),

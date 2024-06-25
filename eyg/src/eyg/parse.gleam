@@ -5,12 +5,21 @@ import eygir/annotated as e
 import gleam/io
 import gleam/list
 import gleam/option.{None, Some}
+import gleam/result
 
 pub fn from_string(src) {
   src
   |> lexer.lex()
   |> token.drop_whitespace()
   |> parser.expression()
+}
+
+pub fn all_from_string(src) {
+  use #(source, remaining) <- result.try(from_string(src))
+  case remaining {
+    [] -> Ok(source)
+    [#(token, at), ..] -> Error(parser.UnexpectedToken(token, at))
+  }
 }
 
 pub fn block_from_string(src) {

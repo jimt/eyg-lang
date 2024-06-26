@@ -132,11 +132,15 @@ let run = (_) -> {
     ),
     #(
       h.div([], [text("HTTP")]),
-      "let { http, mime } = #standard_library
+      "let { http, mime, string } = #standard_library
 
 let run = (_) -> {
   let request = http.get(\"api.sunrisesunset.io\")
-  let request = {path: \"/json?lat=38.907192&lng=-77.036873\", ..request}
+  let request = {
+    path: \"/json\",
+    query: Some(\"lat=38.907192&lng=-77.036873\"),
+    body: !string_to_binary(\"\"),
+    ..request}
   let response = perform Fetch(request)
   
   response

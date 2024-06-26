@@ -192,6 +192,14 @@ fn logs1(logs) {
           ]),
           h.span([a.class("px-1")], [text(question), text(": "), text(answer)]),
         ]
+        state.Fetched(request) -> [
+          h.span([a.class("bg-gray-700 text-white text-right px-2")], [
+            text("Fetched"),
+          ]),
+          h.span([a.class("px-1")], [
+            text(uri.to_string(request.to_uri(request))),
+          ]),
+        ]
       }
     }),
   )

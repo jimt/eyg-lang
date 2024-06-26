@@ -20,8 +20,10 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/pair
 import gleam/result
+import gleam/string
 import gleam/uri
 import harness/effect as impls
+import harness/http
 import harness/stdlib
 import intro/content
 import lustre/effect
@@ -39,6 +41,7 @@ pub type Section =
 pub type Effect {
   Log(String)
   Asked(question: String, answer: String)
+  Fetched(request: Request(BitArray))
   Waited(Int)
   Geolocation(reply: Result(geolocation.GeolocationPosition, String))
 }
@@ -342,6 +345,7 @@ fn reply_value(effect) {
     Asked(_question, answer) -> v.Str(answer)
     Waited(_duration) -> v.unit
     Log(_) -> panic as "log can be dealt with synchronously"
+    Fetched(_) -> panic as "fetch returns a promise"
   }
 }
 
@@ -446,19 +450,37 @@ fn handle_next(result, effects, references) {
               )
             }
             "Fetch" -> {
-              io.debug(lift)
-              let assert Ok(request) =
-                impls.as_request(lift)
-                |> io.debug
-              #(
-                Runner(Suspended(Fetch(request), env, k), effects),
-                effect.from(fn(d) {
-                  let v = impls.do_fetch(lift)
-                    d(Unsuspend(Fetched(v)))
-                  
-                  Nil
-                }),
-              )
+              let assert Ok(request) = http.request_to_gleam(lift)
+              let task = {
+                use response <- promise.try_await(fetch.send_bits(request))
+                fetch.read_bytes_body(response)
+              }
+              let value =
+                v.Promise({
+                  use result <- promise.map(task)
+                  io.debug(result)
+                  case result {
+                    Ok(response) -> v.ok(http.response_to_eyg(response))
+                    Error(reason) -> v.error(v.Str(string.inspect(reason)))
+                  }
+                })
+              let result = r.loop(istate.step(istate.V(value), env, k))
+              let effects = [Fetched(request), ..effects]
+              let #(run, effect) = handle_next(result, effects, references)
+
+              #(run, effect)
+              // #(
+              //   Runner(
+              //     Suspended(Fetch(todo as "might not suspend"), env, k),
+              //     effects,
+              //   ),
+              //   effect.from(fn(d) {
+              //     let v = impls.do_fetch(lift)
+              //     // d(Unsuspend(Fetched(v)))
+
+              //     Nil
+              //   }),
+              // )
             }
 
             _other -> #(

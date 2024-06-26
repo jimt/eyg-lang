@@ -17,6 +17,10 @@ pub fn literal_test() {
   |> parse.all_from_string()
   |> should.be_ok()
   |> should.equal(#(e.Str("hello"), #(0, 7)))
+  // "<<>>"
+  // |> parse.all_from_string()
+  // |> should.be_ok()
+  // |> should.equal(#(e.Str("hello"), #(0, 7)))
 }
 
 pub fn negative_integer_test() {

@@ -185,7 +185,7 @@ let list_element = !fix((list_element, decoder, k, acc, rest) -> {
   )
 })
 
-let list = (decoder, k, tokens) -> {
+let as_list = (decoder, k, tokens) -> {
   !uncons(tokens,
     (_) -> { Error(UnexpectedEnd({})) },
     (token, rest) -> { match token {
@@ -207,10 +207,54 @@ let parse = (decoder, raw) -> {
   decoder((out,_rest) -> { out }, tokenise([], raw))
 }
 
+let do_dynamic = !fix((do_dynamic, rest, k) -> {
+  let take_elements = !fix((take_elements, k, acc, rest) -> {
+    !uncons(rest,
+      (_) -> { Error(UnexpectedEnd({})) },
+      (token, rest) -> { match token {
+        Comma(_) -> { 
+          do_dynamic(rest, (element, rest) -> { take_elements(k, [element, ..acc], rest) })
+        }
+        RightBracked(_) -> { 
+          k(Array(list.reverse(acc)), rest) 
+        }
+        |(_) -> { Error(UnexpectedToken(token)) }
+      } }
+    )
+  })
+
+  !uncons(rest,
+    (_) -> { Error(UnexpectedEnd({})) },
+    (token, rest) -> { match token {
+      Number(raw) -> { k(Number(raw), rest) }
+      String(raw) -> { k(String(raw), rest) }
+      True(raw) -> { k(True(raw), rest) }
+      False(raw) -> { k(False(raw), rest) }
+      Null(raw) -> { k(Null(raw), rest) }
+      LeftBracked(_) -> { !uncons(rest,
+        (_) -> { Error(UnexpectedEnd({})) },
+        (token, final) -> { match token {
+          RightBracked(_) -> { k(Array([]), final) }
+          |(_) -> {
+            do_dynamic(rest, (element, rest) -> { take_elements(k, [element], rest) })
+          }
+        }}
+      )}
+      |(_) -> { Error(UnexpectedToken(token)) }
+    }}
+  )
+})
+
+let dynamic = !fix((dynamic, raw) -> {
+  let tokens = tokenise([], raw)
+  do_dynamic(tokens, (value,remaining) -> { Ok(value) })
+})
+
 let run = (_) -> {
   let _ = perform Log(parse(string, \"\\\"foo\\\"\"))
   let _ = perform Log(debug(tokenise([], \"[]\")))
-  parse(list(integer), \"[]\")
+  let _ = parse(as_list(integer), \"[]\")
+  dynamic(\"[1, true]\")
 }",
     ),
     #(

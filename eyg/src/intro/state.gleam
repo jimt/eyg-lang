@@ -137,14 +137,20 @@ fn handle_eval(result, references) {
     Ok(f) -> {
       handle_next(r.resume(f, [v.unit], env, dict.new()), [], references)
     }
-    Error(#(reason, _meta, env, k)) -> {
+    Error(#(reason, meta, env, k)) -> {
       case reason {
         break.UndefinedVariable("#" <> reference) -> #(
           Runner(Suspended(Loading(reference), env, k), []),
           effect.none(),
         )
 
-        _ -> #(Runner(Abort(break.reason_to_string(reason)), []), effect.none())
+        _ -> #(
+          Runner(
+            Abort(break.reason_to_string(reason) <> string.inspect(meta)),
+            [],
+          ),
+          effect.none(),
+        )
       }
     }
   }
@@ -410,7 +416,7 @@ fn do_load(reference) {
 
 fn handle_next(result, effects, references) {
   case result {
-    Error(#(reason, _meta, env, k)) ->
+    Error(#(reason, meta, env, k)) ->
       case reason {
         break.UnhandledEffect(label, lift) ->
           case label {
@@ -485,12 +491,18 @@ fn handle_next(result, effects, references) {
             }
 
             _other -> #(
-              Runner(Abort(break.reason_to_string(reason)), effects),
+              Runner(
+                Abort(break.reason_to_string(reason) <> string.inspect(meta)),
+                effects,
+              ),
               effect.none(),
             )
           }
         reason -> #(
-          Runner(Abort(break.reason_to_string(reason)), effects),
+          Runner(
+            Abort(break.reason_to_string(reason) <> string.inspect(meta)),
+            effects,
+          ),
           effect.none(),
         )
       }

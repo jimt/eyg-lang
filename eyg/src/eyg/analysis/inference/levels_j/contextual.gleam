@@ -378,6 +378,7 @@ pub fn builtins() {
       pure1(t.String, t.result(return, t.unit))
     }),
     #("string_to_binary", pure1(t.String, t.Binary)),
+    #("binary_to_string", pure1(t.Binary, t.result(t.String, t.unit))),
     #("pop_prefix", {
       let eff = q(0)
       let return = q(1)

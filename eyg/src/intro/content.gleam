@@ -41,9 +41,6 @@ let run = (_) -> {
   a
 }",
     ),
-    // TODO highlight error when tokenising
-    // TODO numbers
-    // need next item stack
     #(
       h.div([], [text("json")]),
       "let { list, keylist, string } = #standard_library

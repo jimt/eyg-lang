@@ -54,7 +54,7 @@ fn pop(raw, start) {
     "shallow" <> rest -> done(t.Shallow, 7, rest)
     "handle" <> rest -> done(t.Handle, 6, rest)
 
-    "\"" <> rest -> string("", rest, done)
+    "\"" <> rest -> string("", 1, rest, done)
 
     "1" <> rest -> integer("1", rest, done)
     "2" <> rest -> integer("2", rest, done)
@@ -94,19 +94,28 @@ fn whitespace(buffer, rest, done) {
   }
 }
 
-fn string(buffer, rest, done) {
+fn string(buffer, length, rest, done) {
   case rest {
-    "\"" <> rest -> done(t.String(buffer), string.byte_size(buffer) + 2, rest)
+    "\"" <> rest -> done(t.String(buffer), length + 1, rest)
     "\\" <> rest ->
       case string.pop_grapheme(rest) {
-        Ok(#(g, rest)) -> string(buffer <> "\\" <> g, rest, done)
-        Error(Nil) -> string(buffer <> "\\", rest, done)
+        Ok(#(g, rest)) ->
+          case g {
+            "\"" -> string(buffer <> g, length + 2, rest, done)
+            "\\" -> string(buffer <> g, length + 2, rest, done)
+            "t" -> string(buffer <> "\t", length + 2, rest, done)
+            "r" -> string(buffer <> "\r", length + 2, rest, done)
+            "n" -> string(buffer <> "\n", length + 2, rest, done)
+
+            _ -> todo as "invalid escape"
+          }
+        Error(Nil) -> string(buffer <> "\\", length + 1, rest, done)
       }
     _ ->
       case string.pop_grapheme(rest) {
-        Ok(#(g, rest)) -> string(buffer <> g, rest, done)
-        Error(Nil) ->
-          done(t.UnterminatedString(buffer), string.byte_size(buffer) + 1, "")
+        Ok(#(g, rest)) ->
+          string(buffer <> g, length + string.byte_size(g), rest, done)
+        Error(Nil) -> done(t.UnterminatedString(buffer), length, "")
       }
   }
 }

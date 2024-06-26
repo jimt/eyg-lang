@@ -179,7 +179,6 @@ pub fn pop_prefix() {
 }
 
 pub fn do_pop_prefix(in, prefix, yes, no, meta, env, k) {
-  io.debug("in")
   use in <- result.then(cast.as_string(in))
   use prefix <- result.then(cast.as_string(prefix))
 

@@ -49,7 +49,7 @@ let run = (_) -> {
       "let { list, keylist, string } = #standard_library
 
 let digits = [\"1\", \"2\", \"3\", \"4\", \"5\", \"6\", \"7\", \"8\", \"9\", \"0\"]
-let whitespace = [\" \", \"\r\n\", \"\n\", \"\t\"]
+let whitespace = [\" \", \"\r\n\", \"\n\",\"\r\", \"\t\"]
 let literal = [
   {key: \"{\", value: LeftBrace({})},
   {key: \"}\", value: RightBrace({})},
@@ -74,6 +74,18 @@ let read_string = !fix((read_string, gathered, rest) -> {
   })
 })(\"\")
 
+let read_number = !fix((read_number, gathered, rest) -> { 
+  match string.pop_grapheme(rest) {
+    Ok({head, tail}) -> { 
+      match list.contains([\".\", ..digits], head) {
+        True(_) -> { read_number(string.append(gathered, head), tail) }
+        False(_) -> { {gathered, rest} }
+      }
+    }
+    Error(_) -> { {gathered, rest} }
+  }
+})
+
 let tokenise = !fix((tokenise, acc, rest) -> {
   !pop_prefix(rest, \"true\", tokenise([True({}), ..acc]), (_) -> { 
     !pop_prefix(rest, \"false\", tokenise([False({}), ..acc]), (_) -> { 
@@ -93,7 +105,15 @@ let tokenise = !fix((tokenise, acc, rest) -> {
                   False(_) -> { 
                     match keylist.find(literal, head) {
                       Ok(token) -> { tokenise([token, ..acc], tail) }
-                      Error(_) -> { todo_as_read_number }
+                      Error(_) -> { 
+                        match list.contains([\"-\", ..digits], head) {
+                          True(_) -> { 
+                            let {gathered, rest} = read_number(head, tail)
+                            tokenise([Number(gathered), ..acc], rest)
+                          }
+                          False(_) -> { tokenise([IllegalCharachter(head), ..acc], tail) }
+                        }
+                      }
                     }
                   }
                 }
@@ -107,7 +127,23 @@ let tokenise = !fix((tokenise, acc, rest) -> {
   })
 })
 let run = (_) -> {
-  tokenise([],\"\\\"true\\\" : false\")
+  tokenise([],\"{
+    \\\"results\\\": {
+        \\\"date\\\": \\\"2024-06-26\\\",
+        \\\"sunrise\\\": \\\"5:45:46 AM\\\",
+        \\\"sunset\\\": \\\"8:38:48 PM\\\",
+        \\\"first_light\\\": \\\"3:46:58 AM\\\",
+        \\\"last_light\\\": \\\"10:37:36 PM\\\",
+        \\\"dawn\\\": \\\"5:13:44 AM\\\",
+        \\\"dusk\\\": \\\"9:10:50 PM\\\",
+        \\\"solar_noon\\\": \\\"1:12:17 PM\\\",
+        \\\"golden_hour\\\": \\\"7:58:53 PM\\\",
+        \\\"day_length\\\": \\\"14:53:01\\\",
+        \\\"timezone\\\": \\\"America/New_York\\\",
+        \\\"utc_offset\\\": -240
+    },
+    \\\"status\\\": \\\"OK\\\"
+}\")
 } ",
     ),
     #(
@@ -146,6 +182,25 @@ let run = (_) -> {
   let request = {
     path: \"/json\",
     query: Some(\"lat=38.907192&lng=-77.036873\"),
+    body: !string_to_binary(\"\"),
+    ..request}
+  let response = expect(perform Await(perform Fetch(request)))
+  
+  let json = expect(!binary_to_string(response.body))
+  let _ = perform Log(json)
+  tokenise([], json)
+}",
+    ),
+    #(
+      h.div([], [text("cat")]),
+      "let { debug } = #standard_library
+
+let run = (_) -> {
+  let _ = perform Log(debug(!string_to_binary(\"\\\"\")))
+  let request = http.get(\"catfact.ninja\")
+  let request = {
+    path: \"/fact\",
+    query: None({}),
     body: !string_to_binary(\"\"),
     ..request}
   let response = expect(perform Await(perform Fetch(request)))

@@ -461,6 +461,7 @@ fn handle_next(result, effects, references) {
               let value =
                 v.Promise({
                   use result <- promise.map(task)
+                  io.debug(result)
                   case result {
                     Ok(response) -> v.ok(http.response_to_eyg(response))
                     Error(reason) -> v.error(v.Str(string.inspect(reason)))

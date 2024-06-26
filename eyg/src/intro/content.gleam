@@ -148,22 +148,72 @@ let run = (_) -> {
     ),
     #(
       h.div([], [text("parseing")]),
-      "let string = (k, tokens) -> {
+      "let { list, debug } = #standard_library
+      
+let string = (k, tokens) -> {
   !uncons(tokens,
     (_) -> { Error(UnexpectedEnd({})) },
     (token, rest) -> { match token {
       String(raw) -> { k(raw, rest) }
-      |(_) -> { Error(UnexpectedToken({})) }
+      |(_) -> { Error(UnexpectedToken(token)) }
+    } }
+  )
+}
+
+let integer = (k, tokens) -> {
+  !uncons(tokens,
+    (_) -> { Error(UnexpectedEnd({})) },
+    (token, rest) -> { match token {
+      Number(raw) -> { k(raw, rest) }
+      |(_) -> { Error(UnexpectedToken(token)) }
+    } }
+  )
+}
+
+let done = (_) -> { todo123}
+let object = (_) -> { todorr23 }
+
+let list_element = !fix((list_element, decoder, k, acc, rest) -> { 
+  !uncons(rest,
+    (_) -> { Error(UnexpectedEnd({})) },
+    (token, rest) -> { match token {
+      Comma(_) -> { 
+        decoder((out, after) -> { list_element(decoder, k, [out, ..acc], after) }, rest) 
+      }
+      RightBracked(_) -> { 
+        k(list.reverse(acc), rest) 
+      }
+      |(_) -> { Error(UnexpectedToken(token)) }
+    } }
+  )
+})
+
+let list = (decoder, k, tokens) -> {
+  !uncons(tokens,
+    (_) -> { Error(UnexpectedEnd({})) },
+    (token, rest) -> { match token {
+      LeftBracked(_) -> { !uncons(rest,
+        (_) -> { Error(UnexpectedEnd({})) },
+        (token, final) -> { match token {
+          RightBracked(_) -> { k([], final) }
+          |(_) -> {
+            decoder((out, after) -> { list_element(decoder, k, [out], after) }, rest)
+          }
+        }}
+      )}
+      |(_) -> { Error(UnexpectedToken(token)) }
     } }
   )
 }
 
 let parse = (decoder, raw) -> {
-  decoder((out,_rest) -> { out }, tokenise(raw))
+  decoder((out,_rest) -> { out }, tokenise([], raw))
 }
 
 let run = (_) -> {
-  parse(string, \"[]\")
+  let _ = perform Log(parse(string, \"\\\"foo\\\"\"))
+  let _ = perform Log(debug(tokenise([], \"[]\")))
+  parse(list(integer), \"[]\")
 }",
     ),
     #(

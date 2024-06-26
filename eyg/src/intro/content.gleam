@@ -134,6 +134,13 @@ let run = (_) -> {
       h.div([], [text("HTTP")]),
       "let { http, mime, string } = #standard_library
 
+let expect = (result) -> {
+  match result {
+    Ok(value) -> { value }
+    Error(reason) -> { perform Abort(reason) }
+  }
+}
+
 let run = (_) -> {
   let request = http.get(\"api.sunrisesunset.io\")
   let request = {
@@ -141,9 +148,11 @@ let run = (_) -> {
     query: Some(\"lat=38.907192&lng=-77.036873\"),
     body: !string_to_binary(\"\"),
     ..request}
-  let response = perform Fetch(request)
+  let response = expect(perform Await(perform Fetch(request)))
   
-  response
+  let json = expect(!binary_to_string(response.body))
+  let _ = perform Log(json)
+  tokenise([], json)
 }",
     ),
   ]

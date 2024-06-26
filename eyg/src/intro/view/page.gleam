@@ -132,6 +132,10 @@ pub fn runner(state) {
               h.div([a.class("border-4 border-gray-500 px-6 py-2")], [
                 h.div([], [text("Loading: #" <> reference)]),
               ])
+            state.Suspended(state.Awaiting, _, _) ->
+              h.div([a.class("border-4 border-gray-500 px-6 py-2")], [
+                h.div([], [text("Awaiting: ")]),
+              ])
             state.Suspended(state.Fetch(request), _, _) ->
               h.div([a.class("border-4 border-gray-500 px-6 py-2")], [
                 h.div([], [
@@ -179,6 +183,12 @@ fn logs1(logs) {
             text("Wait"),
           ]),
           h.span([a.class("px-1")], [text(int.to_string(time))]),
+        ]
+        state.Awaited(_value) -> [
+          h.span([a.class("bg-gray-700 text-white text-right px-2")], [
+            text("Awaited"),
+          ]),
+          h.span([a.class("px-1")], []),
         ]
         state.Geolocation(_) -> [
           h.span([a.class("bg-blue-700 text-white text-right px-2")], [

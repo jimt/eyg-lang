@@ -141,6 +141,7 @@ pub fn lib() {
   |> extend("string_length", string.length())
   |> extend("pop_grapheme", string.pop_grapheme())
   |> extend("string_to_binary", string.to_binary())
+  |> extend("binary_to_string", string.from_binary())
   |> extend("pop_prefix", string.pop_prefix())
   // list
   |> extend("uncons", linked_list.uncons())

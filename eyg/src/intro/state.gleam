@@ -39,6 +39,7 @@ pub type Section =
   #(Element(Message), String)
 
 pub type Effect {
+  Awaited(Value)
   Log(String)
   Asked(question: String, answer: String)
   Fetched(request: Request(BitArray))
@@ -48,6 +49,7 @@ pub type Effect {
 
 pub type For {
   Loading(reference: String)
+  Awaiting
   Geo
   Timer(duration: Int)
   TextInput(question: String, response: String)
@@ -344,6 +346,7 @@ fn reply_value(effect) {
     Geolocation(Error(reason)) -> v.error(v.Str(reason))
     Asked(_question, answer) -> v.Str(answer)
     Waited(_duration) -> v.unit
+    Awaited(value) -> value
     Log(_) -> panic as "log can be dealt with synchronously"
     Fetched(_) -> panic as "fetch returns a promise"
   }
@@ -458,7 +461,6 @@ fn handle_next(result, effects, references) {
               let value =
                 v.Promise({
                   use result <- promise.map(task)
-                  io.debug(result)
                   case result {
                     Ok(response) -> v.ok(http.response_to_eyg(response))
                     Error(reason) -> v.error(v.Str(string.inspect(reason)))
@@ -469,18 +471,16 @@ fn handle_next(result, effects, references) {
               let #(run, effect) = handle_next(result, effects, references)
 
               #(run, effect)
-              // #(
-              //   Runner(
-              //     Suspended(Fetch(todo as "might not suspend"), env, k),
-              //     effects,
-              //   ),
-              //   effect.from(fn(d) {
-              //     let v = impls.do_fetch(lift)
-              //     // d(Unsuspend(Fetched(v)))
-
-              //     Nil
-              //   }),
-              // )
+            }
+            "Await" -> {
+              let assert Ok(task) = cast.as_promise(lift)
+              #(
+                Runner(Suspended(Awaiting, env, k), effects),
+                effect.from(fn(d) {
+                  promise.map(task, fn(value) { d(Unsuspend(Awaited(value))) })
+                  Nil
+                }),
+              )
             }
 
             _other -> #(

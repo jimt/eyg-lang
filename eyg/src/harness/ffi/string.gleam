@@ -153,10 +153,24 @@ pub fn to_binary() {
   #(type_, state.Arity1(do_to_binary))
 }
 
-pub fn do_to_binary(in, rev, env, k) {
+pub fn do_to_binary(in, _meta, env, k) {
   use in <- result.then(cast.as_string(in))
 
   Ok(#(state.V(v.Binary(bit_array.from_string(in))), env, k))
+}
+
+pub fn from_binary() {
+  let type_ = t.Fun(t.Binary, t.Open(0), t.result(t.Str, t.unit))
+  #(type_, state.Arity1(do_from_binary))
+}
+
+pub fn do_from_binary(in, _meta, env, k) {
+  use in <- result.then(cast.as_binary(in))
+  let value = case bit_array.to_string(in) {
+    Ok(bytes) -> v.ok(v.Str(bytes))
+    Error(Nil) -> v.error(v.unit)
+  }
+  Ok(#(state.V(value), env, k))
 }
 
 pub fn pop_prefix() {

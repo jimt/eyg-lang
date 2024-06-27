@@ -1,9 +1,10 @@
 import eyg/analysis/inference/levels_j/contextual as j
 import eyg/analysis/type_/binding.{type Poly}
+import eyg/analysis/type_/binding/error
 import eyg/analysis/type_/isomorphic as t
 import eyg/parse
 import eyg/runtime/interpreter/runner as r
-import eyg/runtime/interpreter/state.{type Env, type Stack} as istate
+import eyg/runtime/interpreter/state.{type Env} as istate
 import eyg/runtime/value as v
 import eyg/text/text
 import eygir/annotated
@@ -17,7 +18,11 @@ import gleam/string
 import gleeunit/should
 import harness/stdlib
 
+// TODO find all references ahead of time
 // TODO put hightlight all on one layer -> parsing followed by type errors
+// Always eval ref in empty environment
+// TODO maybe cache should be before the block
+// // TODO references in source code are red when errored
 
 type Value =
   v.Value(
@@ -41,25 +46,24 @@ fn empty() {
   Referenced(0, dict.new(), dict.new())
 }
 
-fn new_state() {
-  State([], empty())
-}
-
 fn process_new(sections) {
-  process(sections, new_state())
+  process(sections, empty())
 }
 
-fn process(sections, state) {
-  list.map_fold(sections, state, fn(acc, code) {
-    // let State(scope, count, references) = acc
+fn process(sections, referenced) {
+  let state = State([], referenced)
+
+  // return full state as we will use that for the hash for the whole page
+  list.map_fold(sections, state, fn(state, code) {
     case parse.block_from_string(code) {
-      Error(reason) -> #(acc, Error(reason))
-      Ok(#(#(assignments, then), _tokens)) -> {
+      Error(reason) -> #(state, Error(reason))
+      Ok(#(#(assignments, _then), _tokens)) -> {
         let assignments = list.reverse(assignments)
 
+        let acc = #([], state)
         let #(acc, assignments) =
           list.map_fold(assignments, acc, fn(acc, assignment) {
-            let State(scope, referenced) = acc
+            let #(errors, State(scope, referenced)) = acc
             let #(label, expression, span) = assignment
 
             let #(start, _) = span
@@ -68,18 +72,18 @@ fn process(sections, state) {
             let expression =
               annotated.substitute_for_references(expression, scope)
 
-            let #(ref, referenced) = install_code(referenced, expression)
+            let #(ref, new_errors, referenced) =
+              install_code(referenced, expression)
+            let errors = list.append(errors, new_errors)
 
             // case ok errors on acc
-            // accumulate all the errors
             // need to add an any var to the scope incases it doesn't work out
-            let acc = State([#(label, ref), ..scope], referenced)
+            let scope = [#(label, ref), ..scope]
+            let acc = #(errors, State(scope, referenced))
             #(acc, #(line_number, ref))
           })
-
-        // TODO state for resumption
-        // TODO type errors
-        #(acc, Ok(assignments))
+        let #(errors, state) = acc
+        #(state, Ok(#(assignments, errors, state)))
       }
     }
   })
@@ -98,23 +102,36 @@ fn install_code(acc, expression) {
 
   let handlers = dict.new()
   let assert Ok(value) = r.execute(expression, env, handlers)
-  let ast = annotated.drop_annotation(expression)
+  let #(ast, meta) = annotated.strip_annotation(expression)
   let #(exp, bindings) = j.infer(ast, t.Empty, types, 0, j.new_state())
 
   let #(_, type_info) = exp
+  let #(_, info) = annotated.strip_annotation(exp)
+  let assert Ok(errors) =
+    list.map(info, fn(i) { i.0 })
+    |> list.strict_zip(meta)
+  let errors =
+    errors
+    |> list.filter_map(fn(pair) {
+      case pair.0 {
+        Ok(Nil) -> Error(Nil)
+        Error(reason) -> Ok(#(reason, pair.1))
+      }
+    })
+
   // if expression evaluates we don't need to worry about eff
   // because evaluation is pure it will always be the same value
   // typechecking at the top should always be ok
   let #(_res, typevar, _eff, _env) = type_info
-  let poly = binding.gen(typevar, -1, bindings)
+  let top_type = binding.gen(typevar, -1, bindings)
 
   let ref = "i" <> int.to_string(count)
   let count = count + 1
 
   let values = dict.insert(values, ref, value)
-  let types = dict.insert(types, ref, poly)
+  let types = dict.insert(types, ref, top_type)
   let acc = Referenced(count, values, types)
-  #(ref, acc)
+  #(ref, errors, acc)
 }
 
 pub fn simple_assignments_test() {
@@ -126,7 +143,9 @@ pub fn simple_assignments_test() {
   let State(_, referenced) = acc
   let Referenced(_, values, types) = referenced
   let assert [section] = sections
-  let assert Ok([#(1, ref_x), #(2, ref_y)]) = section
+  let #(assignments, errors, _state) = should.be_ok(section)
+  should.equal(errors, [])
+  let assert [#(1, ref_x), #(2, ref_y)] = assignments
 
   let value_x = should.be_ok(dict.get(values, ref_x))
   should.equal(value_x, v.Integer(1))
@@ -148,7 +167,9 @@ pub fn simple_var_test() {
   let Referenced(_, values, types) = referenced
 
   let assert [section] = sections
-  let assert Ok([#(1, ref_x), #(2, ref_y)]) = section
+  let #(assignments, errors, _state) = should.be_ok(section)
+  should.equal(errors, [])
+  let assert [#(1, ref_x), #(2, ref_y)] = assignments
 
   let value_x = should.be_ok(dict.get(values, ref_x))
   should.equal(value_x, v.Integer(1))
@@ -165,18 +186,20 @@ pub fn known_reference_test() {
   let pre =
     e.Apply(e.Tag("Ok"), e.Integer(2))
     |> annotated.add_annotation(#(0, 0))
-  let #(ref, referenced) = install_code(empty(), pre)
+  let assert #(ref, [], referenced) = install_code(empty(), pre)
 
   let code = "let a = {foo: #foo}" |> string.replace("#foo", "#" <> ref)
 
-  let #(acc, sections) = process([code], State([], referenced))
+  let #(acc, sections) = process([code], referenced)
 
   let State(_, referenced) = acc
   let Referenced(_, values, types) = referenced
 
   let assert [section] = sections
-  let assert Ok([#(1, ref_a)]) = section |> io.debug
+  let #(assignments, errors, _state) = should.be_ok(section)
 
+  should.equal(errors, [])
+  let assert [#(1, ref_a)] = assignments
   let value_a = should.be_ok(dict.get(values, ref_a))
   should.equal(value_a, v.Record([#("foo", v.Tagged("Ok", v.Integer(2)))]))
   let type_a = should.be_ok(dict.get(types, ref_a))
@@ -188,11 +211,23 @@ pub fn known_reference_test() {
       t.Empty,
     )),
   )
-
-  Nil
 }
 
-// collect type errors
+pub fn type_error_test() {
+  let code = "let f = (_) -> { 3({}) }"
+  let #(acc, sections) = process_new([code])
+  let State(_, referenced) = acc
+  let Referenced(_, values, types) = referenced
+
+  let assert [section] = sections
+  let #(assignments, errors, _state) = should.be_ok(section)
+  let assert [#(error.TypeMismatch(_, t.Integer), _span)] = errors
+  let assert [#(1, ref_f)] = assignments
+  let _value = should.be_ok(dict.get(values, ref_f))
+  let _type = should.be_ok(dict.get(types, ref_f))
+}
+
+// runtime error test
 // run functions
 
 fn ref(hash) {
@@ -208,43 +243,7 @@ pub fn replace_test() {
   |> annotated.drop_annotation()
   |> should.equal(e.Let("x", ref("123"), e.Variable("x")))
 }
-
-// find all references
-// eval
-// typecheck
 // reference -> poly + value
 // get the line information
 // run a hash so value called with term ->
 //  and hash for whole type for whole 
-
-pub fn type_check_test() {
-  let tree = e.Let("x", e.Variable("a"), e.Variable("x"))
-  let references = dict.new()
-
-  let #(exp, bindings) = j.infer(tree, t.Empty, references, 0, j.new_state())
-
-  let #(_, type_info) = exp
-  let #(_res, typevar, _eff, _hmm) = type_info
-
-  let poly = binding.gen(typevar, -1, bindings)
-  // io.debug(poly)
-  // assert is totally generalised
-
-  let tree =
-    e.Let(
-      "x",
-      e.Variable("a"),
-      e.Let("x", e.Lambda("arg", e.Variable("arg")), e.Variable("x")),
-    )
-  let references = dict.new()
-
-  let #(exp, bindings) = j.infer(tree, t.Empty, references, 0, j.new_state())
-
-  let #(_, type_info) = exp
-  let #(_res, typevar, _eff, _hmm) = type_info
-
-  let poly = binding.gen(typevar, -1, bindings)
-  // fully qualified
-
-  // io.debug(poly)
-}

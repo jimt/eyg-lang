@@ -14,6 +14,7 @@ import gleam/dynamic
 import gleam/int
 import gleam/io
 import gleam/list
+import gleam/result.{try}
 import gleam/string
 import gleeunit/should
 import harness/stdlib
@@ -23,6 +24,9 @@ import harness/stdlib
 // Always eval ref in empty environment
 // TODO maybe cache should be before the block
 // // TODO references in source code are red when errored
+// TODO run functions
+// create a block type as returned can have before and after
+// is it worth keeping results in returned assigns maybe show why can't run and highlight errors in the span
 
 type Value =
   v.Value(
@@ -39,7 +43,7 @@ type Referenced {
 }
 
 type State {
-  State(scope: List(#(String, String)), referenced: Referenced)
+  State(scope: List(#(String, Result(String, Nil))), referenced: Referenced)
 }
 
 fn empty() {
@@ -69,18 +73,35 @@ fn process(sections, referenced) {
             let #(start, _) = span
             let line_number = text.offset_line_number(code, start)
 
+            let #(subs, env) =
+              list.map(scope, fn(x) {
+                case x.1 {
+                  Ok(value) -> Ok(#(x.0, value))
+                  Error(Nil) -> Error(#(x.0, j.q(0)))
+                }
+              })
+              |> result.partition()
+
             let expression =
-              annotated.substitute_for_references(expression, scope)
+              annotated.substitute_for_references(expression, subs)
 
-            let #(ref, new_errors, referenced) =
-              install_code(referenced, expression)
+            let #(new_errors, result) =
+              install_code(referenced, env, expression)
             let errors = list.append(errors, new_errors)
-
-            // case ok errors on acc
-            // need to add an any var to the scope incases it doesn't work out
-            let scope = [#(label, ref), ..scope]
-            let acc = #(errors, State(scope, referenced))
-            #(acc, #(line_number, ref))
+            case result {
+              Ok(#(ref, referenced)) -> {
+                // case ok errors on acc
+                // need to add an any var to the scope incases it doesn't work out
+                let scope = [#(label, Ok(ref)), ..scope]
+                let acc = #(errors, State(scope, referenced))
+                #(acc, #(line_number, Ok(ref)))
+              }
+              Error(reason) -> {
+                let scope = [#(label, Error(Nil)), ..scope]
+                let acc = #(errors, State(scope, referenced))
+                #(acc, #(line_number, Error(reason)))
+              }
+            }
           })
         let #(errors, state) = acc
         #(state, Ok(#(assignments, errors, state)))
@@ -89,7 +110,7 @@ fn process(sections, referenced) {
   })
 }
 
-fn install_code(acc, expression) {
+fn install_code(acc, type_env, expression) {
   let Referenced(count, values, types) = acc
   let env =
     istate.Env(
@@ -100,10 +121,9 @@ fn install_code(acc, expression) {
       references: values,
     )
 
-  let handlers = dict.new()
-  let assert Ok(value) = r.execute(expression, env, handlers)
   let #(ast, meta) = annotated.strip_annotation(expression)
-  let #(exp, bindings) = j.infer(ast, t.Empty, types, 0, j.new_state())
+  let #(bindings, _, _, exp) =
+    j.do_infer(ast, type_env, t.Empty, types, 0, j.new_state())
 
   let #(_, type_info) = exp
   let #(_, info) = annotated.strip_annotation(exp)
@@ -119,19 +139,24 @@ fn install_code(acc, expression) {
       }
     })
 
-  // if expression evaluates we don't need to worry about eff
-  // because evaluation is pure it will always be the same value
-  // typechecking at the top should always be ok
-  let #(_res, typevar, _eff, _env) = type_info
-  let top_type = binding.gen(typevar, -1, bindings)
+  let handlers = dict.new()
+  #(errors, {
+    use value <- try(r.execute(expression, env, handlers))
 
-  let ref = "i" <> int.to_string(count)
-  let count = count + 1
+    // if expression evaluates we don't need to worry about eff
+    // because evaluation is pure it will always be the same value
+    // typechecking at the top should always be ok
+    let #(_res, typevar, _eff, _env) = type_info
+    let top_type = binding.gen(typevar, -1, bindings)
 
-  let values = dict.insert(values, ref, value)
-  let types = dict.insert(types, ref, top_type)
-  let acc = Referenced(count, values, types)
-  #(ref, errors, acc)
+    let ref = "i" <> int.to_string(count)
+    let count = count + 1
+
+    let values = dict.insert(values, ref, value)
+    let types = dict.insert(types, ref, top_type)
+    let acc = Referenced(count, values, types)
+    Ok(#(ref, acc))
+  })
 }
 
 pub fn simple_assignments_test() {
@@ -145,7 +170,7 @@ pub fn simple_assignments_test() {
   let assert [section] = sections
   let #(assignments, errors, _state) = should.be_ok(section)
   should.equal(errors, [])
-  let assert [#(1, ref_x), #(2, ref_y)] = assignments
+  let assert [#(1, Ok(ref_x)), #(2, Ok(ref_y))] = assignments
 
   let value_x = should.be_ok(dict.get(values, ref_x))
   should.equal(value_x, v.Integer(1))
@@ -169,7 +194,7 @@ pub fn simple_var_test() {
   let assert [section] = sections
   let #(assignments, errors, _state) = should.be_ok(section)
   should.equal(errors, [])
-  let assert [#(1, ref_x), #(2, ref_y)] = assignments
+  let assert [#(1, Ok(ref_x)), #(2, Ok(ref_y))] = assignments
 
   let value_x = should.be_ok(dict.get(values, ref_x))
   should.equal(value_x, v.Integer(1))
@@ -186,7 +211,7 @@ pub fn known_reference_test() {
   let pre =
     e.Apply(e.Tag("Ok"), e.Integer(2))
     |> annotated.add_annotation(#(0, 0))
-  let assert #(ref, [], referenced) = install_code(empty(), pre)
+  let assert #([], Ok(#(ref, referenced))) = install_code(empty(), [], pre)
 
   let code = "let a = {foo: #foo}" |> string.replace("#foo", "#" <> ref)
 
@@ -199,7 +224,7 @@ pub fn known_reference_test() {
   let #(assignments, errors, _state) = should.be_ok(section)
 
   should.equal(errors, [])
-  let assert [#(1, ref_a)] = assignments
+  let assert [#(1, Ok(ref_a))] = assignments
   let value_a = should.be_ok(dict.get(values, ref_a))
   should.equal(value_a, v.Record([#("foo", v.Tagged("Ok", v.Integer(2)))]))
   let type_a = should.be_ok(dict.get(types, ref_a))
@@ -222,13 +247,28 @@ pub fn type_error_test() {
   let assert [section] = sections
   let #(assignments, errors, _state) = should.be_ok(section)
   let assert [#(error.TypeMismatch(_, t.Integer), _span)] = errors
-  let assert [#(1, ref_f)] = assignments
+  let assert [#(1, Ok(ref_f))] = assignments
   let _value = should.be_ok(dict.get(values, ref_f))
   let _type = should.be_ok(dict.get(types, ref_f))
 }
 
-// runtime error test
-// run functions
+// Test that only the missing variable j is an error as k is something else
+pub fn runtime_error_test() {
+  let code =
+    "let k = j
+let l = k"
+  let #(acc, sections) = process_new([code])
+  let State(_, referenced) = acc
+  let Referenced(_, values, types) = referenced
+
+  let assert [section] = sections
+  let #(assignments, errors, _state) = should.be_ok(section)
+  let assert [#(error.MissingVariable("j"), _span)] = errors
+  should.equal(dict.size(values), 0)
+  should.equal(dict.size(types), 0)
+  // mostly can run with type errors
+  // io.debug(assignments)
+}
 
 fn ref(hash) {
   e.Builtin("#" <> hash)

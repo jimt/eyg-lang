@@ -255,7 +255,7 @@ fn pure3(arg1, arg2, arg3, ret) {
 }
 
 // q for quantified
-fn q(i) {
+pub fn q(i) {
   t.Var(#(True, i))
 }
 

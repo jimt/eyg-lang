@@ -75,6 +75,36 @@ pub type State {
   )
 }
 
+pub type Block(a) {
+  Block(
+    assignments: List(#(String, annotated.Node(a))),
+    then: annotated.Node(a),
+  )
+}
+
+import eyg/parse/parser
+
+pub type Code {
+  Code(raw: String, parsed: Result(Block(#(Int, Int)), parser.Reason))
+}
+
+pub type Cache {
+  Cache(environment: List(#(String, String)))
+}
+
+// for each variable
+pub fn foo(assignments) {
+  list.fold(assignments, Cache([]), fn(state, assignment) {
+    let #(label, expression) = assignment
+    let Cache(environment) = state
+    let referenced =
+      annotated.substitute_for_references(expression, environment)
+    // free vars should have all the meta
+    // typecheck
+    todo
+  })
+}
+
 pub fn init(_) {
   let sections = content.sections()
   let refs = dict.new()

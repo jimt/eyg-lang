@@ -292,9 +292,7 @@ fn section(references) {
         let target =
           option.map(target, fn(span) {
             let #(start, _) = span
-            text.lines_positions(code)
-            |> list.take_while(fn(x) { x < start })
-            |> list.length
+            text.offset_line_number(code, start)
           })
         let exp = state.rollup_block(exp, assigns)
         #(Ok(#(exp, target)), errors, assigns)

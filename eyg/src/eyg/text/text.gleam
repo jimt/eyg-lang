@@ -6,10 +6,12 @@ pub fn line_count(content) {
   |> list.length
 }
 
-pub fn lines_positions(source) {
+pub fn line_offsets(source) {
   list.reverse(do_lines(source, 0, 0, []))
 }
 
+// could be done with a nonempty list as the accumulator 
+// return non empty list would give coloum easy
 fn do_lines(source, offset, start, acc) {
   case source {
     "\r\n" <> rest -> {
@@ -29,4 +31,10 @@ fn do_lines(source, offset, start, acc) {
         Error(Nil) -> [start, ..acc]
       }
   }
+}
+
+pub fn offset_line_number(code, offset) {
+  line_offsets(code)
+  |> list.take_while(fn(x) { x <= offset })
+  |> list.length
 }

@@ -1,6 +1,13 @@
 import gleam/list
 import gleam/result
 
+pub fn key_reject(in, rejected) {
+  list.filter(in, fn(keyword) {
+    let #(key, _value) = keyword
+    key != rejected
+  })
+}
+
 fn do_filter_errors(l, acc) {
   case l {
     [] -> list.reverse(acc)

@@ -2,6 +2,7 @@ import eygir/expression as e
 import gleam/dynamic
 import gleam/io
 import gleam/list
+import gleam/listx
 
 pub type Node(m) =
   #(Expression(m), m)
@@ -92,14 +93,14 @@ fn do_strip_annotation(in, acc) {
 pub fn add_annotation(exp, meta) {
   case exp {
     e.Variable(label) -> #(Variable(label), meta)
-    e.Lambda(label, body) -> #(Lambda(label, add_annotation(body, meta)), Nil)
+    e.Lambda(label, body) -> #(Lambda(label, add_annotation(body, meta)), meta)
     e.Apply(func, arg) -> #(
-      Apply(add_annotation(func, meta), add_annotation(arg, Nil)),
-      Nil,
+      Apply(add_annotation(func, meta), add_annotation(arg, meta)),
+      meta,
     )
     e.Let(label, value, body) -> #(
       Let(label, add_annotation(value, meta), add_annotation(body, meta)),
-      Nil,
+      meta,
     )
 
     e.Binary(value) -> #(Binary(value), meta)
@@ -177,4 +178,68 @@ fn do_list_builtins(exp, found) {
     }
     _ -> found
   }
+}
+
+pub fn free_variables(exp) {
+  do_free_variables(exp, [], [])
+}
+
+fn do_free_variables(exp, found, ignore) {
+  let #(exp, _meta) = exp
+  case exp {
+    Variable(var) ->
+      case list.contains(found, var) || list.contains(ignore, var) {
+        True -> found
+        False -> [var, ..found]
+      }
+    Let(var, value, then) -> {
+      let found = do_free_variables(then, found, ignore)
+      let ignore = case list.contains(ignore, var) {
+        True -> ignore
+        False -> [var, ..ignore]
+      }
+      do_free_variables(value, found, ignore)
+    }
+    Lambda(var, body) -> {
+      let ignore = case list.contains(ignore, var) {
+        True -> ignore
+        False -> [var, ..ignore]
+      }
+      do_free_variables(body, found, ignore)
+    }
+    Apply(func, arg) -> {
+      let found = do_free_variables(arg, found, ignore)
+      do_free_variables(func, found, ignore)
+    }
+    _ -> found
+  }
+}
+
+pub fn substitute_for_references(exp, subs) {
+  let #(exp, meta) = exp
+  let exp = case exp {
+    Variable(var) ->
+      case list.key_find(subs, var) {
+        Ok(ref) -> Builtin("#" <> ref)
+        Error(Nil) -> exp
+      }
+    Let(var, value, then) -> {
+      let value = substitute_for_references(value, subs)
+      let subs = listx.key_reject(subs, var)
+      let then = substitute_for_references(then, subs)
+      Let(var, value, then)
+    }
+    Lambda(var, body) -> {
+      let subs = listx.key_reject(subs, var)
+      let body = substitute_for_references(body, subs)
+      Lambda(var, body)
+    }
+    Apply(func, arg) -> {
+      let func = substitute_for_references(func, subs)
+      let arg = substitute_for_references(arg, subs)
+      Apply(func, arg)
+    }
+    _ -> exp
+  }
+  #(exp, meta)
 }

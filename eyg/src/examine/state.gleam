@@ -78,7 +78,7 @@ pub fn highlights(state, spans, acc) {
   let with_effects =
     list.fold(
       effect_lines(spans, acc),
-      list.map(text.lines_positions(source(state)), fn(x) { #(x, []) }),
+      list.map(text.line_offsets(source(state)), fn(x) { #(x, []) }),
       fn(lines, sp) { apply_span(lines, sp.0, sp.1, []) },
     )
 
@@ -145,8 +145,7 @@ pub fn interpret(state) {
   case parse(source(state)) {
     Ok(tree) -> {
       let #(r, assignments) = live.execute(tree, h)
-      let lines =
-        list.map(text.lines_positions(source(state)), fn(x) { #(x, []) })
+      let lines = list.map(text.line_offsets(source(state)), fn(x) { #(x, []) })
       let output =
         list.fold(assignments, lines, fn(lines, sp) {
           apply_span(lines, sp.2, Ok(#(sp.0, sp.1)), [])

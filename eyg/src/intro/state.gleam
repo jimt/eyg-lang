@@ -11,7 +11,7 @@ import eygir/annotated.{type Expression}
 import eygir/decode
 import gleam/bit_array
 import gleam/dict.{type Dict}
-import gleam/fetch
+import gleam/fetch as gleam_fetch
 import gleam/float
 import gleam/http/request.{type Request}
 import gleam/int
@@ -22,7 +22,7 @@ import gleam/pair
 import gleam/result
 import gleam/string
 import gleam/uri
-import harness/effect as impls
+import harness/fetch
 import harness/http
 import harness/stdlib
 import intro/content
@@ -460,24 +460,12 @@ fn handle_next(result, effects, references) {
             }
             "Fetch" -> {
               let assert Ok(request) = http.request_to_gleam(lift)
-              let task = {
-                use response <- promise.try_await(fetch.send_bits(request))
-                fetch.read_bytes_body(response)
-              }
-              let value =
-                v.Promise({
-                  use result <- promise.map(task)
-                  io.debug(result)
-                  case result {
-                    Ok(response) -> v.ok(http.response_to_eyg(response))
-                    Error(reason) -> v.error(v.Str(string.inspect(reason)))
-                  }
-                })
-              let result = r.loop(istate.step(istate.V(value), env, k))
+              let task = fetch.do(request)
+              let value = fetch.task_to_eyg(task)
               let effects = [Fetched(request), ..effects]
-              let #(run, effect) = handle_next(result, effects, references)
 
-              #(run, effect)
+              r.loop(istate.step(istate.V(value), env, k))
+              |> handle_next(effects, references)
             }
             "Await" -> {
               let assert Ok(task) = cast.as_promise(lift)
@@ -531,14 +519,14 @@ pub fn browser_run(task) {
 }
 
 pub fn do_fetch(request) {
-  use response <- promise.await(fetch.send_bits(request))
+  use response <- promise.await(gleam_fetch.send_bits(request))
   let assert Ok(response) = response
-  use response <- promise.await(fetch.read_bytes_body(response))
+  use response <- promise.await(gleam_fetch.read_bytes_body(response))
   let response = case response {
     Ok(response) -> Ok(response)
-    Error(fetch.NetworkError(s)) -> Error(t.NetworkError(s))
-    Error(fetch.UnableToReadBody) -> Error(t.UnableToReadBody)
-    Error(fetch.InvalidJsonBody) -> panic
+    Error(gleam_fetch.NetworkError(s)) -> Error(t.NetworkError(s))
+    Error(gleam_fetch.UnableToReadBody) -> Error(t.UnableToReadBody)
+    Error(gleam_fetch.InvalidJsonBody) -> panic
   }
   promise.resolve(response)
 }

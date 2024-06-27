@@ -1,4 +1,3 @@
-import eyg/runtime/break
 import eyg/runtime/cast
 import eyg/runtime/value as v
 import gleam/http
@@ -6,7 +5,6 @@ import gleam/http/request.{Request}
 import gleam/http/response.{Response}
 import gleam/list
 import gleam/result.{try}
-import gleam/string
 
 pub fn method_to_gleam(value) {
   cast.as_varient(value, [

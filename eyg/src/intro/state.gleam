@@ -156,19 +156,6 @@ fn handle_eval(result, references) {
   }
 }
 
-pub fn all_errors(exp, references) {
-  let #(exp, _bindings) =
-    j.infer(exp, type_.Empty, references, 0, j.new_state())
-  let acc = annotated.strip_annotation(exp).1
-  list.filter_map(acc, fn(node) {
-    let #(type_error, _typed, _effect, _env) = node
-    case type_error {
-      Ok(Nil) -> Error(Nil)
-      Error(reason) -> Ok(reason)
-    }
-  })
-}
-
 pub fn information(source, references) {
   let #(tree, spans) = annotated.strip_annotation(source)
   let #(exp, _bindings) =
@@ -381,19 +368,12 @@ fn do_load(reference) {
     |> result.replace_error(snag.new("Not utf8 formatted.")),
   )
 
-  // use body <- t.try(case bit_array.to_string(body) {
-  //   Ok(data) -> Ok(data)
-  //   Error(Nil) -> Error(snag.new("Not utf8 formatted."))
-  // })
-
   use source <- t.try(
     decode.from_json(body)
     |> result.replace_error(snag.new("Unable to decode source code.")),
   )
   io.println("Decoded source for reference: " <> reference)
 
-  all_errors(source, dict.new())
-  |> io.debug
   let #(exp, bindings) =
     j.infer(source, type_.Empty, dict.new(), 0, j.new_state())
 

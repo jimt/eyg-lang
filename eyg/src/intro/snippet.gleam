@@ -47,13 +47,17 @@ pub type Snippet {
   )
 }
 
+@external(javascript, "../browser_ffi.js", "hashCode")
+fn hash_code(str: String) -> String
+
 pub fn hash(expression) {
   let expression = annotated.drop_annotation(expression)
-  subtle.digest(<<string.inspect(expression):utf8>>)
-  |> promise.map(io.debug)
-  |> promise.map(result.unwrap(_, <<>>))
-  |> promise.map(bit_array.base16_encode(_))
-  |> promise.map(io.debug)
+  // subtle.digest(<<string.inspect(expression):utf8>>)
+  // |> promise.map(io.debug)
+  // |> promise.map(result.unwrap(_, <<>>))
+  // |> promise.map(bit_array.base16_encode(_))
+  // |> promise.map(io.debug)
+  hash_code(string.inspect(expression))
 }
 
 pub fn empty() {
@@ -150,8 +154,7 @@ pub fn install_code(acc, type_env, expression) {
   let handlers = dict.new()
   #(errors, {
     use value <- try(r.execute(expression, env, handlers))
-    // let ref = "h" <> 
-    hash(expression)
+    let ref = "h" <> hash(expression)
 
     // if expression evaluates we don't need to worry about eff
     // because evaluation is pure it will always be the same value
@@ -159,8 +162,9 @@ pub fn install_code(acc, type_env, expression) {
     let #(_res, typevar, _eff, _env) = type_info
     let top_type = binding.gen(typevar, -1, bindings)
 
-    let ref = "i" <> int.to_string(count)
-    let count = count + 1
+    // TODO remove ref
+    // let ref = "i" <> int.to_string(count)
+    // let count = count + 1
 
     let values = dict.insert(values, ref, value)
     let types = dict.insert(types, ref, top_type)

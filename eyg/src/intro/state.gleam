@@ -125,7 +125,7 @@ pub fn init(_) {
 pub type Message {
   EditCode(index: Int, content: String)
   UpdateSuspend(For)
-  Run(#(Expression(#(Int, Int)), #(Int, Int)))
+  Run(String)
   Unsuspend(Effect)
   // execute after assumes boolean information probably should be list of args and/or reference to possible effects
   LoadedReference(
@@ -312,9 +312,10 @@ pub fn update(state, message) {
     }
     Run(source) -> {
       // let references = dict.map_values(references, fn(_, v) { pair.first(v) })
-      let #(run, effect) = eval(source, references.values)
-      let state = State(..state, running: Some(run))
-      #(state, effect)
+      todo as "runsource"
+      // let #(run, effect) = eval(source, references.values)
+      // let state = State(..state, running: Some(run))
+      // #(state, effect)
     }
 
     Unsuspend(effect) -> {

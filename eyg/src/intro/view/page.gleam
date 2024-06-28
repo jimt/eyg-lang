@@ -271,33 +271,33 @@ fn section(section, index) {
   }
   let #(error_messages, error_spans) = list.unzip(errors)
 
-  // state = previous assignments
-
-  // let #(can_run, errors, state) = case parse.block_from_string(code) {
-  //   Ok(#(#(assigns, final), _remaining_tokens)) -> {
-  //     let errors = state.type_errors(assigns, final, references)
-
-  //     let assigns = list.append(assigns, state)
-  //     let #(exp, target) = case final, assigns {
-  //       None, [#(label, _, span), ..] -> #(
-  //         #(annotated.Variable(label), #(0, 0)),
-  //         Some(span),
-  //       )
-  //       None, [] -> #(#(annotated.Empty, #(0, 0)), None)
-  //       Some(other), _ -> #(other, None)
-  //     }
-  //     let target =
-  //       option.map(target, fn(span) {
-  //         let #(start, _) = span
-  //         text.offset_line_number(code, start)
-  //       })
-  //     let exp = state.rollup_block(exp, assigns)
-  //     #(Ok(#(exp, target)), errors, assigns)
-  //   }
-  //   Error(reason) -> {
-  //     #(Error(reason), [], state)
-  //   }
-  // }
+  let targets = case snippet {
+    Ok(snippet.Snippet(assignments: assignments, ..)) -> {
+      let #(_, pushed) =
+        // lines are 1 indexed probably worth Fixing TODO?
+        list.fold(assignments, #(1, []), fn(acc, assignment) {
+          let #(next, pushed) = acc
+          case assignment {
+            #(line, Ok(ref)) if line >= next -> {
+              let padding = list.repeat(h.br([]), line - next)
+              let pushed = list.append(padding, pushed)
+              let el =
+                h.button(
+                  [
+                    a.class("bg-red-400 text-white px-2 -mr-2 rounded-l"),
+                    e.on_click(state.Run(ref)),
+                  ],
+                  [text("Run >")],
+                )
+              #(line + 1, [h.br([]), el, ..pushed])
+            }
+            _ -> acc
+          }
+        })
+      list.reverse(pushed)
+    }
+    Error(_) -> []
+  }
 
   h.div([a.class("")], [
     h.div(
@@ -309,29 +309,10 @@ fn section(section, index) {
         ]),
       ],
       [
-        h.div([a.style([#("align-self", "bottom")])], [
-          // text("effects")
-        ]),
+        h.div([a.style([#("align-self", "bottom")])], []),
         h.div([a.class("my-4 bg-white bg-opacity-70 rounded")], [context]),
         h.div([], []),
-        h.div(
-          [a.class("my-4 p-2 text-right")],
-          [],
-          // case can_run {
-        //   Ok(#(exp, Some(count))) ->
-        //     list.repeat(h.br([]), count)
-        //     |> list.append([
-        //       h.button(
-        //         [
-        //           a.class("bg-red-400 text-white px-2 -mr-2 rounded-l"),
-        //           e.on_click(state.Run(exp)),
-        //         ],
-        //         [text("Run >")],
-        //       ),
-        //     ])
-        //   _ -> []
-        // }
-        ),
+        h.div([a.class("my-4 p-2 text-right")], targets),
         h.div([a.class("my-4 bg-gray-200 rounded bg-opacity-70")], [
           h.div([a.class("p-2")], [text_input(code, on_update, [])]),
           h.div(

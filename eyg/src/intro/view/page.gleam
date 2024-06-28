@@ -137,12 +137,6 @@ pub fn runner(state) {
               h.div([a.class("border-4 border-gray-500 px-6 py-2")], [
                 h.div([], [text("Awaiting: ")]),
               ])
-            state.Suspended(state.Fetch(request), _, _) ->
-              h.div([a.class("border-4 border-gray-500 px-6 py-2")], [
-                h.div([], [
-                  text("Fetching: #" <> uri.to_string(request.to_uri(request))),
-                ]),
-              ])
             state.Suspended(state.Timer(remaining), _, _) ->
               h.div([a.class("border-4 border-blue-500 px-6 py-2")], [
                 h.div([], [text("Waiting " <> int.to_string(remaining))]),

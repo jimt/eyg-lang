@@ -54,8 +54,6 @@ pub type For {
   Geo
   Timer(duration: Int)
   TextInput(question: String, response: String)
-  // TODO change request to bitarray
-  Fetch(request: Request(String))
 }
 
 pub type Handle(a) {
@@ -371,24 +369,6 @@ fn do_load(reference) {
     |> result.replace_error(snag.new("Unable to decode source code.")),
   )
   io.println("Decoded source for reference: " <> reference)
-
-  // let #(exp, bindings) =
-  //   j.infer(source, type_.Empty, dict.new(), 0, j.new_state())
-
-  // let #(_, type_info) = exp
-  // let #(_res, typevar, _eff, _hmm) = type_info
-
-  // let poly = binding.gen(typevar, 0, bindings)
-
-  // let env = stdlib.env()
-  // let handlers = dict.new()
-  // let source = annotated.add_annotation(source, Nil)
-
-  // use value <- t.try(
-  //   r.execute(source, env, handlers)
-  //   |> result.replace_error(snag.new("Unable to evaluate reference.")),
-  // )
-
   t.done(source)
 }
 

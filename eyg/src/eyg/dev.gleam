@@ -54,7 +54,7 @@ fn build_intro() {
     // #("/intro/index.html", index),
     #("/intro/index.css", style),
     #("/saved/std.json", stdlib),
-    #("/saved/h" <> std_hash, stdlib),
+    #("/saved/h" <> std_hash <> ".json", stdlib),
     #("/saved/json.json", json),
     ..list.map(pages, fn(page) { #("/guide/" <> page <> "/index.html", index) })
   ])

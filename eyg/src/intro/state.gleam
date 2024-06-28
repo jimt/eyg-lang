@@ -1,5 +1,6 @@
 import eyg/analysis/inference/levels_j/contextual as j
 import eyg/analysis/type_/binding
+import eyg/analysis/type_/binding/error
 import eyg/analysis/type_/isomorphic as type_
 import eyg/parse
 import eyg/parse/parser.{type Span}
@@ -100,35 +101,51 @@ pub fn init(_) {
     list.map_fold(sections, snippet.State([], references), fn(acc, section) {
       let #(context, code) = section
       let #(acc, snippet) = snippet.process_snippet(acc, code)
+      io.debug({
+        case snippet {
+          Ok(snippet.Snippet(errors: errors, ..), ..) -> errors
+          _ -> []
+        }
+      })
       #(acc, #(context, code, snippet))
     })
+  let missing =
+    list.filter_map(sections, fn(section) {
+      let #(_, _, snippet) = section
+      use snippet.Snippet(errors: errors, ..) <- result.try(snippet)
+      Ok(
+        list.filter_map(errors, fn(error) {
+          let #(reason, _span) = error
+          case reason {
+            error.MissingVariable("#" <> ref) -> Ok(ref)
+            _ -> Error(Nil)
+          }
+        }),
+      )
+    })
+    |> list.flatten
+    |> io.debug
 
   let state = State(references, sections, None)
   #(state, effect.none())
-  // #(state, effect.from(load_new_references(sections, refs, _)))
+  #(state, effect.from(load_new_references(missing, _)))
 }
 
-// fn load_new_references(sections, refs, d) {
-//   let new_refs =
-//     list.flat_map(sections, fn(section) {
-//       let #(_context, code) = section
-//       find_new_references(code, refs)
-//     })
-//     |> list.unique()
-
-//   list.map(new_refs, fn(reference) {
-//     let task = do_load(reference)
-//     promise.map(browser_run(task), fn(result) {
-//       case result {
-//         Ok(value) -> {
-//           d(LoadedReference(reference, value, True))
-//         }
-//         Error(reason) -> io.println(snag.pretty_print(reason))
-//       }
-//     })
-//   })
-//   Nil
-// }
+fn load_new_references(missing, d) {
+  list.map(missing, fn(reference) {
+    let task = do_load(reference)
+    promise.map(browser_run(task), fn(result) {
+      case result {
+        Ok(expression) -> {
+          let expression = annotated.add_annotation(expression, #(0, 0))
+          d(LoadedReference(reference, expression, True))
+        }
+        Error(reason) -> io.println(snag.pretty_print(reason))
+      }
+    })
+  })
+  Nil
+}
 
 pub type Message {
   EditCode(index: Int, content: String)
@@ -138,15 +155,12 @@ pub type Message {
   // execute after assumes boolean information probably should be list of args and/or reference to possible effects
   LoadedReference(
     reference: String,
-    value: #(Value, binding.Poly),
+    value: Node(Span),
     // TODO remove when suspense state has all the inforation
     execute_after: Bool,
   )
   CloseRunner
 }
-
-type Value =
-  v.Value(Nil, #(List(#(istate.Kontinue(Nil), Nil)), istate.Env(Nil)))
 
 fn empty_env(references) -> istate.Env(parser.Span) {
   istate.Env(
@@ -271,8 +285,12 @@ pub fn update(state, message) {
       #(state, effect)
     }
 
-    LoadedReference(reference, value, execute_after) -> {
-      todo as "load references needs install"
+    LoadedReference(reference, expression, execute_after) -> {
+      io.debug(reference)
+      let assert #(errors, Ok(#(r, references))) =
+        snippet.install_code(references, [], expression)
+      // TODO do we care about errors 
+
       // let State(references: references, running: running, ..) = state
       // io.println("Added reference: " <> reference)
       // let references = dict.insert(references, reference, value)
@@ -291,8 +309,8 @@ pub fn update(state, message) {
       //   }
       //   other -> #(other, effect.none())
       // }
-      // let state = State(..state, references: references, running: run)
-      // #(state, effect)
+      let state = State(..state, references: references)
+      #(state, effect.none())
     }
     CloseRunner -> {
       let state = State(..state, running: None)
@@ -345,10 +363,11 @@ fn reply_value(effect) -> snippet.Value {
 }
 
 fn do_load(reference) {
+  io.println("Loading reference: " <> reference)
   use file <- t.try(case reference {
     "standard_library" -> Ok("std.json")
     "json" -> Ok("json.json")
-
+    "h" <> _hash -> Ok(reference <> ".json")
     _ -> Error(snag.new("no file for reference: " <> reference))
   })
   let assert Ok(uri) = uri.parse("http://localhost:8080/saved/" <> file)
@@ -373,24 +392,24 @@ fn do_load(reference) {
   )
   io.println("Decoded source for reference: " <> reference)
 
-  let #(exp, bindings) =
-    j.infer(source, type_.Empty, dict.new(), 0, j.new_state())
+  // let #(exp, bindings) =
+  //   j.infer(source, type_.Empty, dict.new(), 0, j.new_state())
 
-  let #(_, type_info) = exp
-  let #(_res, typevar, _eff, _hmm) = type_info
+  // let #(_, type_info) = exp
+  // let #(_res, typevar, _eff, _hmm) = type_info
 
-  let poly = binding.gen(typevar, 0, bindings)
+  // let poly = binding.gen(typevar, 0, bindings)
 
-  let env = stdlib.env()
-  let handlers = dict.new()
-  let source = annotated.add_annotation(source, Nil)
+  // let env = stdlib.env()
+  // let handlers = dict.new()
+  // let source = annotated.add_annotation(source, Nil)
 
-  use value <- t.try(
-    r.execute(source, env, handlers)
-    |> result.replace_error(snag.new("Unable to evaluate reference.")),
-  )
+  // use value <- t.try(
+  //   r.execute(source, env, handlers)
+  //   |> result.replace_error(snag.new("Unable to evaluate reference.")),
+  // )
 
-  t.done(#(value, poly))
+  t.done(source)
 }
 
 fn handle_next(

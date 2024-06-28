@@ -1,7 +1,9 @@
 import eygir/decode
 import gleam/bit_array
 import gleam/list
+import gleam/pair
 import gleam/string
+import intro/content
 import intro/snippet
 import midas/task as t
 
@@ -30,7 +32,7 @@ fn build_spotless() {
 
 fn build_intro() {
   use script <- t.do(t.bundle("intro/intro", "run"))
-  let files = [#("/intro.js", <<script:utf8>>)]
+
   use index <- t.do(t.read("src/intro/index.html"))
   use style <- t.do(t.read("src/intro/index.css"))
   use stdlib <- t.do(t.read("saved/std.json"))
@@ -45,13 +47,16 @@ fn build_intro() {
 
   use json <- t.do(t.read("saved/json.json"))
 
+  let pages = content.pages() |> list.map(pair.first)
+
   t.done([
-    #("/intro/index.html", index),
+    #("/intro.js", <<script:utf8>>),
+    // #("/intro/index.html", index),
     #("/intro/index.css", style),
     #("/saved/std.json", stdlib),
     #("/saved/h" <> std_hash, stdlib),
     #("/saved/json.json", json),
-    ..files
+    ..list.map(pages, fn(page) { #("/guide/" <> page <> "/index.html", index) })
   ])
 }
 

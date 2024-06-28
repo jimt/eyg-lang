@@ -12,17 +12,23 @@ let set_username = (user_id, name) -> {
 }
 set_username(\"123124248p574975345\", \"Bob\")"
 
-pub fn sections() {
+pub fn pages() {
   [
-    #(
-      h.p([], [text("whats the point")]),
-      "let { string } = #h1c86c927
+    #("intro", [
+      #(
+        h.p([], [text("whats the point")]),
+        "let { string } = #h1c86c927
 
 let run = (_) -> {
   let answer = perform Ask(\"What's your name?\")
   perform Log(string.append(\"Hello \", answer))
 }",
-    ),
+      ),
+    ]),
+    #("foo", [
+      #(h.p([], [text("whats the point")]), "let x = 1"),
+      #(h.p([], [text("other")]), "let y = x"),
+    ]),
     //     #(
   //       fragment([
   //         h.h2([a.class("text-xl")], [text("Handling an effect")]),

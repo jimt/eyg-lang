@@ -34,6 +34,7 @@ import lustre/element.{type Element}
 import lustre/element/html as h
 import midas/task as t
 import plinth/browser/geolocation
+import plinth/browser/window
 import plinth/javascript/global
 import snag
 
@@ -83,17 +84,24 @@ pub type State {
 
 pub fn init(_) {
   let references = snippet.empty()
-  // could renmae snippet state to acc
+  // Local storage for between pages
+  // could renmae type Snippet state to Acc
+  let sections = case uri.parse(window.location()) {
+    Ok(uri.Uri(path: "/guide/" <> slug, ..)) ->
+      case list.key_find(content.pages(), slug) {
+        Ok(sections) -> sections
+        Error(Nil) -> []
+      }
+    _ -> {
+      []
+    }
+  }
   let #(snippet.State(_scope, references), sections) =
-    list.map_fold(
-      content.sections(),
-      snippet.State([], references),
-      fn(acc, section) {
-        let #(context, code) = section
-        let #(acc, snippet) = snippet.process_snippet(acc, code)
-        #(acc, #(context, code, snippet))
-      },
-    )
+    list.map_fold(sections, snippet.State([], references), fn(acc, section) {
+      let #(context, code) = section
+      let #(acc, snippet) = snippet.process_snippet(acc, code)
+      #(acc, #(context, code, snippet))
+    })
 
   let state = State(references, sections, None)
   #(state, effect.none())

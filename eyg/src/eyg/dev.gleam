@@ -1,4 +1,8 @@
+import eygir/decode
+import gleam/bit_array
 import gleam/list
+import gleam/string
+import intro/snippet
 import midas/task as t
 
 fn build_drafting() {
@@ -30,12 +34,22 @@ fn build_intro() {
   use index <- t.do(t.read("src/intro/index.html"))
   use style <- t.do(t.read("src/intro/index.css"))
   use stdlib <- t.do(t.read("saved/std.json"))
+
+  let assert Ok(expression) =
+    decode.from_json({
+      let assert Ok(stdlib) = bit_array.to_string(stdlib)
+      stdlib
+    })
+  let std_hash = snippet.hash_code(string.inspect(expression))
+  use Nil <- t.do(t.log(std_hash))
+
   use json <- t.do(t.read("saved/json.json"))
 
   t.done([
     #("/intro/index.html", index),
     #("/intro/index.css", style),
     #("/saved/std.json", stdlib),
+    #("/saved/h" <> std_hash, stdlib),
     #("/saved/json.json", json),
     ..files
   ])

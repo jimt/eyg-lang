@@ -249,6 +249,26 @@ pub fn content(state) {
   ])
 }
 
+pub fn separate_spans(spans) {
+  let spans =
+    list.sort(spans, fn(a, b) {
+      let #(start_a, _end) = a
+      let #(start_b, _end) = b
+      int.compare(start_a, start_b)
+    })
+  let #(_max, spans) =
+    list.map_fold(spans, 0, fn(max, value) {
+      let #(start, end) = value
+      let #(max, span) = case start {
+        _ if max <= start -> #(end, #(start, end))
+        _ if max <= end -> #(end, #(max, end))
+        _ -> #(max, #(max, max))
+      }
+      #(max, span)
+    })
+  spans
+}
+
 fn section(section, index) {
   let #(context, code, snippet) = section
 
@@ -314,7 +334,7 @@ fn section(section, index) {
         h.div([], []),
         h.div([a.class("my-4 p-2 text-right")], targets),
         h.div([a.class("my-4 bg-gray-200 rounded bg-opacity-70")], [
-          h.div([a.class("p-2")], [text_input(code, on_update, [])]),
+          h.div([a.class("p-2")], [text_input(code, on_update, error_spans)]),
           h.div(
             [a.class("")],
             list.map(error_messages, fn(message) {
@@ -335,7 +355,8 @@ const monospace = "ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,\"Liberatio
 
 const pre_id = "highlighting-underlay"
 
-fn text_input(code, on_update, errors) {
+fn text_input(code, on_update, error_spans) {
+  let error_spans = separate_spans(error_spans)
   h.div(
     [
       a.style([
@@ -381,7 +402,7 @@ fn text_input(code, on_update, errors) {
             #("color", "transparent"),
           ]),
         ],
-        underline(code, errors),
+        underline(code, error_spans),
       ),
       // case parse_error {
       //   Ok(_) -> none()

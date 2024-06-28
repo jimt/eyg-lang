@@ -16,7 +16,7 @@ pub fn sections() {
   [
     #(
       h.p([], [text("whats the point")]),
-      "let { string } = #standard_library
+      "let { string } = #h1c86c927
 
 let run = (_) -> {
   let answer = perform Ask(\"What's your name?\")

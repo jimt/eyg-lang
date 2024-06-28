@@ -47,8 +47,8 @@ pub type Snippet {
   )
 }
 
-@external(javascript, "../browser_ffi.js", "hashCode")
-fn hash_code(str: String) -> String
+@external(javascript, "../browser_ffi.mjs", "hashCode")
+pub fn hash_code(str: String) -> String
 
 pub fn hash(expression) {
   let expression = annotated.drop_annotation(expression)

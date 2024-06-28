@@ -17,6 +17,7 @@ import gleam/option.{None, Some}
 import gleam/pair
 import gleam/string
 import gleam/uri
+import intro/snippet
 import intro/state
 import lustre/attribute as a
 import lustre/element.{fragment, none, text} as _
@@ -216,8 +217,7 @@ fn logs1(logs) {
 }
 
 pub fn content(state) {
-  let state.State(sections: sections, references: references, ..) = state
-  let references = dict.map_values(references, fn(_, v) { pair.second(v) })
+  let state.State(sections: sections, ..) = state
   h.div([a.class("relative vstack")], [
     h.div([a.class("cover expand")], [
       h.h1([a.class("p-4 text-6xl")], [text("Eyg")]),
@@ -239,7 +239,7 @@ pub fn content(state) {
       //     ],
       //   ),
       // ]),
-      h.div([a.class("")], iterate(sections, [], section(references))),
+      h.div([a.class("")], list.index_map(sections, section)),
     ]),
     // bad things with min h 100% in relative maybe fixed is better than sticky
     // sticky works as long as there is content
@@ -249,63 +249,56 @@ pub fn content(state) {
   ])
 }
 
-fn do_iterate(remaining, func, previous, state, acc) {
-  case remaining {
-    [] -> list.reverse(acc)
-    [item, ..remaining] -> {
-      let #(element, state) = func(previous, item, remaining, state)
-      let acc = [element, ..acc]
-      do_iterate(remaining, func, [item, ..previous], state, acc)
-    }
-  }
-}
+fn section(section, index) {
+  let #(context, code, snippet) = section
 
-fn iterate(items, initial, func) {
-  do_iterate(items, func, [], initial, [])
-}
+  let on_update = fn(new) { state.EditCode(index, new) }
 
-fn section(references) {
-  fn(previous, section, post, state) {
-    let #(context, code) = section
-
-    let on_update = fn(new) {
-      let #(content, _code) = section
-      let section = #(content, new)
-      state.EditCode(listx.gather_around(previous, section, post))
-    }
-
-    // state = previous assignments
-
-    let #(can_run, errors, state) = case parse.block_from_string(code) {
-      Ok(#(#(assigns, final), _remaining_tokens)) -> {
-        let errors = state.type_errors(assigns, final, references)
-
-        let assigns = list.append(assigns, state)
-        let #(exp, target) = case final, assigns {
-          None, [#(label, _, span), ..] -> #(
-            #(annotated.Variable(label), #(0, 0)),
-            Some(span),
-          )
-          None, [] -> #(#(annotated.Empty, #(0, 0)), None)
-          Some(other), _ -> #(other, None)
+  let errors = case snippet {
+    Ok(snippet.Snippet(errors: errors, ..)) ->
+      errors
+      |> list.map(fn(error) { #(debug.render_reason(error.0), error.1) })
+    Error(reason) -> {
+      let end = string.byte_size(code)
+      let #(message, start) = case reason {
+        parser.UnexpectedToken(position: position, token: token) -> {
+          #("Unexpected code token: " <> string.inspect(token), position)
         }
-        let target =
-          option.map(target, fn(span) {
-            let #(start, _) = span
-            text.offset_line_number(code, start)
-          })
-        let exp = state.rollup_block(exp, assigns)
-        #(Ok(#(exp, target)), errors, assigns)
+        parser.UnexpectEnd -> #("Code is unfinished", end)
       }
-      Error(reason) -> {
-        #(Error(reason), [], state)
-      }
+      [#(message, #(start, end))]
     }
-    #(render_section(context, code, on_update, can_run, errors), state)
   }
-}
+  let #(error_messages, error_spans) = list.unzip(errors)
 
-fn render_section(context, code, on_update, can_run, errors) {
+  // state = previous assignments
+
+  // let #(can_run, errors, state) = case parse.block_from_string(code) {
+  //   Ok(#(#(assigns, final), _remaining_tokens)) -> {
+  //     let errors = state.type_errors(assigns, final, references)
+
+  //     let assigns = list.append(assigns, state)
+  //     let #(exp, target) = case final, assigns {
+  //       None, [#(label, _, span), ..] -> #(
+  //         #(annotated.Variable(label), #(0, 0)),
+  //         Some(span),
+  //       )
+  //       None, [] -> #(#(annotated.Empty, #(0, 0)), None)
+  //       Some(other), _ -> #(other, None)
+  //     }
+  //     let target =
+  //       option.map(target, fn(span) {
+  //         let #(start, _) = span
+  //         text.offset_line_number(code, start)
+  //       })
+  //     let exp = state.rollup_block(exp, assigns)
+  //     #(Ok(#(exp, target)), errors, assigns)
+  //   }
+  //   Error(reason) -> {
+  //     #(Error(reason), [], state)
+  //   }
+  // }
+
   h.div([a.class("")], [
     h.div(
       [
@@ -321,41 +314,35 @@ fn render_section(context, code, on_update, can_run, errors) {
         ]),
         h.div([a.class("my-4 bg-white bg-opacity-70 rounded")], [context]),
         h.div([], []),
-        h.div([a.class("my-4 p-2 text-right")], case can_run {
-          Ok(#(exp, Some(count))) ->
-            list.repeat(h.br([]), count)
-            |> list.append([
-              h.button(
-                [
-                  a.class("bg-red-400 text-white px-2 -mr-2 rounded-l"),
-                  e.on_click(state.Run(exp)),
-                ],
-                [text("Run >")],
-              ),
-            ])
-          _ -> []
-        }),
+        h.div(
+          [a.class("my-4 p-2 text-right")],
+          [],
+          // case can_run {
+        //   Ok(#(exp, Some(count))) ->
+        //     list.repeat(h.br([]), count)
+        //     |> list.append([
+        //       h.button(
+        //         [
+        //           a.class("bg-red-400 text-white px-2 -mr-2 rounded-l"),
+        //           e.on_click(state.Run(exp)),
+        //         ],
+        //         [text("Run >")],
+        //       ),
+        //     ])
+        //   _ -> []
+        // }
+        ),
         h.div([a.class("my-4 bg-gray-200 rounded bg-opacity-70")], [
-          h.div([a.class("p-2")], [text_input(code, on_update, errors, can_run)]),
-          case can_run {
-            Ok(_) -> {
-              h.div(
-                [a.class("")],
-                list.map(errors, fn(error) {
-                  let #(_span, reason) = error
-                  h.div(
-                    [a.class("px-2 -mt-1 py-1 rounded bg-pink-500 text-white")],
-                    [text(debug.render_reason(reason))],
-                  )
-                }),
-              )
-            }
-            Error(reason) ->
+          h.div([a.class("p-2")], [text_input(code, on_update, [])]),
+          h.div(
+            [a.class("")],
+            list.map(error_messages, fn(message) {
               h.div(
                 [a.class("px-2 -mt-1 py-1 rounded bg-pink-500 text-white")],
-                [text(string.inspect(reason))],
+                [text(message)],
               )
-          },
+            }),
+          ),
         ]),
         h.div([], []),
       ],
@@ -367,7 +354,7 @@ const monospace = "ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,\"Liberatio
 
 const pre_id = "highlighting-underlay"
 
-fn text_input(code, on_update, errors, parse_error) {
+fn text_input(code, on_update, errors) {
   h.div(
     [
       a.style([
@@ -415,44 +402,44 @@ fn text_input(code, on_update, errors, parse_error) {
         ],
         underline(code, errors),
       ),
-      case parse_error {
-        Ok(_) -> none()
-        Error(reason) -> {
-          let from = case reason {
-            parser.UnexpectedToken(position: position, ..) -> position
-            parser.UnexpectEnd -> string.byte_size(code)
-          }
-          case pop_bytes(code, from, []) {
-            Ok(#(pre, post)) -> {
-              h.pre(
-                [
-                  a.id(pre_id),
-                  a.style([
-                    #("position", "absolute"),
-                    #("top", "0"),
-                    #("bottom", "0"),
-                    #("left", "0"),
-                    #("right", "0"),
-                    #("margin", "0 !important"),
-                    #("white-space", "pre-wrap"),
-                    #("word-wrap", "break-word"),
-                    #("overflow", "auto"),
-                    #("color", "transparent"),
-                  ]),
-                ],
-                [
-                  h.span([], [text(pre)]),
-                  h.span(
-                    [a.style([#("text-decoration", "red wavy underline;")])],
-                    [text(post)],
-                  ),
-                ],
-              )
-            }
-            Error(_) -> none()
-          }
-        }
-      },
+      // case parse_error {
+      //   Ok(_) -> none()
+      //   Error(reason) -> {
+      //     let from = case reason {
+      //       parser.UnexpectedToken(position: position, ..) -> position
+      //       parser.UnexpectEnd -> string.byte_size(code)
+      //     }
+      //     case pop_bytes(code, from, []) {
+      //       Ok(#(pre, post)) -> {
+      //         h.pre(
+      //           [
+      //             a.id(pre_id),
+      //             a.style([
+      //               #("position", "absolute"),
+      //               #("top", "0"),
+      //               #("bottom", "0"),
+      //               #("left", "0"),
+      //               #("right", "0"),
+      //               #("margin", "0 !important"),
+      //               #("white-space", "pre-wrap"),
+      //               #("word-wrap", "break-word"),
+      //               #("overflow", "auto"),
+      //               #("color", "transparent"),
+      //             ]),
+      //           ],
+      //           [
+      //             h.span([], [text(pre)]),
+      //             h.span(
+      //               [a.style([#("text-decoration", "red wavy underline;")])],
+      //               [text(post)],
+      //             ),
+      //           ],
+      //         )
+      //       }
+      //       Error(_) -> none()
+      //     }
+      //   }
+      // },
       h.textarea(
         [
           a.style([
@@ -532,7 +519,7 @@ fn underline(code, errors) {
   let #(_, _, acc) =
     list.fold(errors, #(code, 0, []), fn(state, error) {
       let #(code, offset, acc) = state
-      let #(#(start, end), reason) = error
+      let #(start, end) = error
       let pre = start - offset
       let emp = end - start
       let offset = end
@@ -590,6 +577,9 @@ fn pop_bytes(string, bytes, acc) {
         }
         Error(Nil) -> Error(Nil)
       }
-    _ -> panic as "weird bytes"
+    _ -> {
+      io.debug("weird bytes")
+      Ok(#(string.concat(list.reverse(acc)), string))
+    }
   }
 }

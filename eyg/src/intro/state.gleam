@@ -2,15 +2,17 @@ import eyg/analysis/inference/levels_j/contextual as j
 import eyg/analysis/type_/binding
 import eyg/analysis/type_/isomorphic as type_
 import eyg/parse
+import eyg/parse/parser.{type Span}
 import eyg/runtime/break
 import eyg/runtime/cast
 import eyg/runtime/interpreter/runner as r
 import eyg/runtime/interpreter/state.{type Env, type Stack} as istate
 import eyg/runtime/value as v
-import eygir/annotated.{type Expression}
+import eygir/annotated.{type Expression, type Node}
 import eygir/decode
 import gleam/bit_array
 import gleam/dict.{type Dict}
+import gleam/dynamic
 import gleam/fetch as gleam_fetch
 import gleam/float
 import gleam/http/request.{type Request}
@@ -26,8 +28,10 @@ import harness/fetch
 import harness/http
 import harness/stdlib
 import intro/content
+import intro/snippet.{Snippet}
 import lustre/effect
 import lustre/element.{type Element}
+import lustre/element/html as h
 import midas/task as t
 import plinth/browser/geolocation
 import plinth/javascript/global
@@ -39,7 +43,7 @@ pub type Section =
   #(Element(Message), String)
 
 pub type Effect {
-  Awaited(Value)
+  Awaited(snippet.Value)
   Log(String)
   Asked(question: String, answer: String)
   Fetched(request: Request(BitArray))
@@ -57,56 +61,69 @@ pub type For {
   Fetch(request: Request(String))
 }
 
-pub type Handle {
+pub type Handle(a) {
   Abort(String)
-  Suspended(for: For, Env(Nil), Stack(Nil))
-  Done(Value)
+  Suspended(for: For, Env(a), Stack(a))
+  Done(snippet.Value)
 }
 
-pub type Runner {
-  Runner(handle: Handle, effects: List(Effect))
+pub type Runner(a) {
+  Runner(handle: Handle(a), effects: List(Effect))
 }
 
 pub type State {
   State(
-    references: Dict(String, #(Value, binding.Poly)),
-    sections: List(Section),
-    running: Option(Runner),
+    references: snippet.Referenced,
+    sections: List(
+      #(Element(Message), String, Result(snippet.Snippet, parser.Reason)),
+    ),
+    running: Option(Runner(Span)),
   )
 }
 
 pub fn init(_) {
-  let sections = content.sections()
-  let refs = dict.new()
+  let references = snippet.empty()
+  // could renmae snippet state to acc
+  let #(snippet.State(_scope, references), sections) =
+    list.map_fold(
+      content.sections(),
+      snippet.State([], references),
+      fn(acc, section) {
+        let #(context, code) = section
+        let #(acc, snippet) = snippet.process_snippet(acc, code)
+        #(acc, #(context, code, snippet))
+      },
+    )
 
-  let state = State(refs, sections, None)
-  #(state, effect.from(load_new_references(sections, refs, _)))
+  let state = State(references, sections, None)
+  #(state, effect.none())
+  // #(state, effect.from(load_new_references(sections, refs, _)))
 }
 
-fn load_new_references(sections, refs, d) {
-  let new_refs =
-    list.flat_map(sections, fn(section) {
-      let #(_context, code) = section
-      find_new_references(code, refs)
-    })
-    |> list.unique()
+// fn load_new_references(sections, refs, d) {
+//   let new_refs =
+//     list.flat_map(sections, fn(section) {
+//       let #(_context, code) = section
+//       find_new_references(code, refs)
+//     })
+//     |> list.unique()
 
-  list.map(new_refs, fn(reference) {
-    let task = do_load(reference)
-    promise.map(browser_run(task), fn(result) {
-      case result {
-        Ok(value) -> {
-          d(LoadedReference(reference, value, True))
-        }
-        Error(reason) -> io.println(snag.pretty_print(reason))
-      }
-    })
-  })
-  Nil
-}
+//   list.map(new_refs, fn(reference) {
+//     let task = do_load(reference)
+//     promise.map(browser_run(task), fn(result) {
+//       case result {
+//         Ok(value) -> {
+//           d(LoadedReference(reference, value, True))
+//         }
+//         Error(reason) -> io.println(snag.pretty_print(reason))
+//       }
+//     })
+//   })
+//   Nil
+// }
 
 pub type Message {
-  EditCode(sections: List(#(Element(Message), String)))
+  EditCode(index: Int, content: String)
   UpdateSuspend(For)
   Run(#(Expression(#(Int, Int)), #(Int, Int)))
   Unsuspend(Effect)
@@ -123,19 +140,32 @@ pub type Message {
 type Value =
   v.Value(Nil, #(List(#(istate.Kontinue(Nil), Nil)), istate.Env(Nil)))
 
+fn empty_env(references) -> istate.Env(parser.Span) {
+  istate.Env(
+    ..stdlib.env()
+    |> dynamic.from()
+    |> dynamic.unsafe_coerce(),
+    references: references,
+  )
+}
+
 // only two cases. eval is inline before calling no further handlers but will call
-fn eval(source: #(Expression(#(Int, Int)), #(Int, Int)), references) {
-  let source = annotated.map_annotation(source, fn(_) { Nil })
+fn eval(source: Node(Span), references) {
+  // let source = annotated.map_annotation(source, fn(_) { Nil })
   let handlers = dict.new()
-  let env = istate.Env(..stdlib.env(), references: references)
+  let env = empty_env(references)
   handle_eval(r.execute(source, env, handlers), references)
 }
 
-fn handle_eval(result, references) {
-  let env = istate.Env(..stdlib.env(), references: references)
+fn handle_eval(result: Result(snippet.Value, _), references) {
+  let env = empty_env(references)
   case result {
     Ok(f) -> {
-      handle_next(r.resume(f, [v.unit], env, dict.new()), [], references)
+      handle_next(
+        r.resume(f, [#(v.unit, #(0, 0))], env, dict.new()),
+        [],
+        references,
+      )
     }
     Error(#(reason, meta, env, k)) -> {
       case reason {
@@ -241,9 +271,36 @@ fn find_new_references(code, existing) {
 pub fn update(state, message) {
   let State(references: references, ..) = state
   case message {
-    EditCode(sections) -> {
-      let state = State(..state, sections: sections)
-      #(state, effect.from(load_new_references(sections, references, _)))
+    EditCode(index, new) -> {
+      let State(sections: sections, ..) = state
+      let #(pre, post) = list.split(sections, index)
+      let scope =
+        list.reverse(pre)
+        |> list.find_map(fn(section) {
+          let #(_, _, snippet) = section
+          case snippet {
+            Ok(Snippet(final: snippet.State(scope: scope, ..), ..)) -> Ok(scope)
+            Error(_) -> Error(Nil)
+          }
+        })
+        |> result.unwrap([])
+      let post = case post {
+        [#(context, _old, _drop_cache), ..rest] -> [
+          #(context, new),
+          ..list.map(rest, fn(x) { #(x.0, x.1) })
+        ]
+        [] -> [#(h.div([], [element.text("new section")]), new)]
+      }
+      let #(snippet.State(referenced: references, ..), post) =
+        list.map_fold(post, snippet.State(scope, references), fn(acc, section) {
+          let #(context, code) = section
+          let #(acc, snippet) = snippet.process_snippet(acc, code)
+          #(acc, #(context, code, snippet))
+        })
+      let sections = list.append(pre, post)
+      let state = State(..state, sections: sections, references: references)
+      #(state, effect.none())
+      // #(state, effect.from(load_new_references(sections, references, _)))
     }
     UpdateSuspend(for) -> {
       let State(running: running, ..) = state
@@ -254,8 +311,8 @@ pub fn update(state, message) {
       #(state, effect.none())
     }
     Run(source) -> {
-      let references = dict.map_values(references, fn(_, v) { pair.first(v) })
-      let #(run, effect) = eval(source, references)
+      // let references = dict.map_values(references, fn(_, v) { pair.first(v) })
+      let #(run, effect) = eval(source, references.values)
       let state = State(..state, running: Some(run))
       #(state, effect)
     }
@@ -274,26 +331,27 @@ pub fn update(state, message) {
     }
 
     LoadedReference(reference, value, execute_after) -> {
-      let State(references: references, running: running, ..) = state
-      io.println("Added reference: " <> reference)
-      let references = dict.insert(references, reference, value)
+      todo as "load references needs install"
+      // let State(references: references, running: running, ..) = state
+      // io.println("Added reference: " <> reference)
+      // let references = dict.insert(references, reference, value)
 
-      let #(run, effect) = case running {
-        Some(Runner(Suspended(Loading(r), env, k), effects)) if r == reference -> {
-          let #(value, _) = value
-          let result = r.loop(istate.step(istate.V(value), env, k))
-          let references =
-            dict.map_values(references, fn(_, v) { pair.first(v) })
-          let #(run, effect) = case execute_after {
-            True -> handle_eval(result, references)
-            False -> handle_next(result, effects, references)
-          }
-          #(Some(run), effect)
-        }
-        other -> #(other, effect.none())
-      }
-      let state = State(..state, references: references, running: run)
-      #(state, effect)
+      // let #(run, effect) = case running {
+      //   Some(Runner(Suspended(Loading(r), env, k), effects)) if r == reference -> {
+      //     let #(value, _) = value
+      //     let result = r.loop(istate.step(istate.V(value), env, k))
+      //     let references =
+      //       dict.map_values(references, fn(_, v) { pair.first(v) })
+      //     let #(run, effect) = case execute_after {
+      //       True -> handle_eval(result, references)
+      //       False -> handle_next(result, effects, references)
+      //     }
+      //     #(Some(run), effect)
+      //   }
+      //   other -> #(other, effect.none())
+      // }
+      // let state = State(..state, references: references, running: run)
+      // #(state, effect)
     }
     CloseRunner -> {
       let state = State(..state, running: None)
@@ -302,7 +360,7 @@ pub fn update(state, message) {
   }
 }
 
-fn reply_value(effect) {
+fn reply_value(effect) -> snippet.Value {
   case effect {
     Geolocation(Ok(geolocation.GeolocationPosition(
       latitude: latitude,
@@ -394,7 +452,11 @@ fn do_load(reference) {
   t.done(#(value, poly))
 }
 
-fn handle_next(result, effects, references) {
+fn handle_next(
+  result: Result(snippet.Value, #(_, _, Env(Span), _)),
+  effects,
+  references,
+) {
   case result {
     Error(#(reason, meta, env, k)) ->
       case reason {

@@ -93,10 +93,10 @@ pub fn render(state) {
 }
 
 pub fn runner(state) {
-  let state.State(sections: sections, running: runner, ..) = state
+  let state.State(running: runner, ..) = state
   case runner {
     None -> none()
-    Some(state.Runner(handle, effects)) ->
+    Some(#(ref, state.Runner(handle, effects))) ->
       h.div(
         [
           a.class(
@@ -106,7 +106,7 @@ pub fn runner(state) {
         ],
         [
           h.h1([a.class("text-right")], [
-            // text("Running ..."),
+            text("Running #" <> ref <> "   "),
             h.button([e.on_click(state.CloseRunner)], [text("close")]),
           ]),
           logs1(list.reverse(effects)),

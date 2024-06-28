@@ -77,7 +77,7 @@ pub type State {
     sections: List(
       #(Element(Message), String, Result(snippet.Snippet, parser.Reason)),
     ),
-    running: Option(Runner(Span)),
+    running: Option(#(String, Runner(Span))),
   )
 }
 
@@ -304,30 +304,44 @@ pub fn update(state, message) {
     }
     UpdateSuspend(for) -> {
       let State(running: running, ..) = state
-      let assert Some(Runner(Suspended(_, env, k), effects)) = running
+      let assert Some(#(ref, run)) = running
+      let assert Runner(Suspended(_, env, k), effects) = run
 
       let state =
-        State(..state, running: Some(Runner(Suspended(for, env, k), effects)))
+        State(
+          ..state,
+          running: Some(#(ref, Runner(Suspended(for, env, k), effects))),
+        )
       #(state, effect.none())
     }
-    Run(source) -> {
-      // let references = dict.map_values(references, fn(_, v) { pair.first(v) })
-      todo as "runsource"
-      // let #(run, effect) = eval(source, references.values)
-      // let state = State(..state, running: Some(run))
-      // #(state, effect)
+    Run(reference) -> {
+      let assert Ok(func) = dict.get(references.values, reference)
+      let #(run, effect) =
+        handle_next(
+          r.resume(
+            func,
+            [#(v.unit, #(0, 0))],
+            empty_env(references.values),
+            dict.new(),
+          ),
+          [],
+          references,
+        )
+      let state = State(..state, running: Some(#(reference, run)))
+      #(state, effect)
     }
 
     Unsuspend(effect) -> {
       let State(running: running, ..) = state
-      let assert Some(Runner(Suspended(_, env, k), effects)) = running
+      let assert Some(#(ref, run)) = running
+      let assert Runner(Suspended(_, env, k), effects) = run
 
       let value = reply_value(effect)
       let result = r.loop(istate.step(istate.V(value), env, k))
       let effects = [effect, ..effects]
       let #(run, effect) = handle_next(result, effects, references)
 
-      let state = State(..state, running: Some(run))
+      let state = State(..state, running: Some(#(ref, run)))
       #(state, effect)
     }
 

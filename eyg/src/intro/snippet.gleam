@@ -122,6 +122,20 @@ pub fn process_snippet(state, code) {
   }
 }
 
+pub fn missing_references(r) {
+  case r {
+    Ok(Snippet(errors: errors, ..)) ->
+      list.filter_map(errors, fn(error) {
+        let #(reason, _span) = error
+        case reason {
+          error.MissingVariable("#" <> ref) -> Ok(ref)
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
 pub fn install_code(acc, type_env, expression) {
   let Referenced(count, values, types) = acc
   let env =

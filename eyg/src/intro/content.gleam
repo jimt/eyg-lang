@@ -24,134 +24,144 @@ let run = (_) -> {
   perform Log(string.append(\"Hello \", answer))
 }",
       ),
+      #(
+        fragment([
+          h.h2([a.class("text-xl")], [text("Handling an effect")]),
+          h.div([a.class("")], [
+            text(
+              "Lorem ipsum, dolor sit amet consectetur adipisicing elit. Totam quae voluptatum animi fuga placeat reprehenderit, quisquam mollitia exercitationem inventore corrupti numquam tempora assumenda eligendi impedit accusamus quidem labore voluptatem saepe?",
+            ),
+          ]),
+        ]),
+        "let { string } = #h1c86c927
+  let run = (_) -> { 
+    let a = match perform Geo({}) {
+      Ok({latitude,longitude}) -> { {latitude,longitude} }
+     }
+    let _ = perform Wait(5000)
+    a
+  }",
+      ),
     ]),
     #("foo", [
       #(h.p([], [text("whats the point")]), "let x = 1"),
       #(h.p([], [text("other")]), "let y = x"),
     ]),
+    #("json", [
+      #(
+        h.div([], [text("json")]),
+        "let { list, keylist, string } = #h1c86c927
+
+let digits = [\"1\", \"2\", \"3\", \"4\", \"5\", \"6\", \"7\", \"8\", \"9\", \"0\"]
+let whitespace = [\" \", \"\r\n\", \"\n\",\"\r\", \"\t\"]
+
+let literal = [
+  {key: \"{\", value: LeftBrace({})},
+  {key: \"}\", value: RightBrace({})},
+  {key: \"[\", value: LeftBracket({})},
+  {key: \"]\", value: RightBracket({})},
+  {key: \":\", value: Colon({})},
+  {key: \",\", value: Comma({})}
+]
+
+let read_string = !fix((read_string, gathered, rest) -> { 
+  !pop_prefix(rest, \"\\\\\\\"\", 
+    read_string(string.append(gathered, \"\\\"\")), (_) -> {
+    !pop_prefix(rest, \"\\\"\", 
+      (rest) -> { Ok({gathered, rest}) }, 
+      (_) -> {
+        match string.pop_grapheme(rest) {
+          Ok({head, tail}) -> { read_string(string.append(gathered, head), tail) }
+          Error(_) -> { Error({}) }
+        }
+      }
+    )
+  })
+})(\"\")
+
+let read_number = !fix((read_number, gathered, rest) -> { 
+  match string.pop_grapheme(rest) {
+    Ok({head, tail}) -> { 
+      match list.contains([\".\", ..digits], head) {
+        True(_) -> { read_number(string.append(gathered, head), tail) }
+        False(_) -> { {gathered, rest} }
+      }
+    }
+    Error(_) -> { {gathered, rest} }
+  }
+})
+
+let tokenise = !fix((tokenise, acc, rest) -> {
+  !pop_prefix(rest, \"true\", tokenise([True({}), ..acc]), (_) -> { 
+    !pop_prefix(rest, \"false\", tokenise([False({}), ..acc]), (_) -> { 
+      !pop_prefix(rest, \"null\", tokenise([Null({}), ..acc]), (_) -> { 
+        !pop_prefix(rest, \"\\\"\",
+          (rest) -> {
+            match read_string(rest) {
+              Ok({gathered, rest}) -> { tokenise([String(gathered), ..acc], rest) }
+              Error(_) -> { list.reverse([UnterminatedString(rest), ..acc]) }
+            }
+          }, 
+          (_) -> { 
+            match !pop_grapheme(rest) {
+              Ok({head, tail}) -> { 
+                match list.contains(whitespace, head) {
+                  True(_) -> { tokenise(acc, tail) }
+                  False(_) -> { 
+                    match keylist.find(literal, head) {
+                      Ok(token) -> { tokenise([token, ..acc], tail) }
+                      Error(_) -> { 
+                        match list.contains([\"-\", ..digits], head) {
+                          True(_) -> { 
+                            let {gathered, rest} = read_number(head, tail)
+                            tokenise([Number(gathered), ..acc], rest)
+                          }
+                          False(_) -> { tokenise([IllegalCharachter(head), ..acc], tail) }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+              Error(_) -> { list.reverse(acc) }
+            }
+          }
+        )
+      })
+    })
+  })
+})
+let run = (_) -> {
+  tokenise([],\"{
+      \\\"results\\\": {
+        \\\"date\\\": \\\"2024-06-26\\\",
+        \\\"sunrise\\\": \\\"5:45:46 AM\\\",
+        \\\"sunset\\\": \\\"8:38:48 PM\\\",
+        \\\"first_light\\\": \\\"3:46:58 AM\\\",
+        \\\"last_light\\\": \\\"10:37:36 PM\\\",
+        \\\"dawn\\\": \\\"5:13:44 AM\\\",
+        \\\"dusk\\\": \\\"9:10:50 PM\\\",
+        \\\"solar_noon\\\": \\\"1:12:17 PM\\\",
+        \\\"golden_hour\\\": \\\"7:58:53 PM\\\",
+        \\\"day_length\\\": \\\"14:53:01\\\",
+        \\\"timezone\\\": \\\"America/New_York\\\",
+        \\\"utc_offset\\\": -240
+      },
+      \\\"status\\\": \\\"OK\\\"
+    }\"
+  )
+}",
+      ),
+    ]),
     //     #(
-  //       fragment([
-  //         h.h2([a.class("text-xl")], [text("Handling an effect")]),
-  //         h.div([a.class("")], [
-  //           text(
-  //             "Lorem ipsum, dolor sit amet consectetur adipisicing elit. Totam quae voluptatum animi fuga placeat reprehenderit, quisquam mollitia exercitationem inventore corrupti numquam tempora assumenda eligendi impedit accusamus quidem labore voluptatem saepe?",
-  //           ),
-  //         ]),
-  //       ]),
-  //       "let { string } = #standard_library
-  // let run = (_) -> { 
-  //   let a = match perform Geo({}) {
-  //     Ok({latitude,longitude}) -> { {latitude,longitude} }
-  //    }
-  //   let _ = perform Wait(5000)
-  //   a
-  // }",
-  //     ),
-  //     #(
-  //       h.div([], [text("json")]),
-  //       "let { list, keylist, string } = #standard_library
 
-  // let digits = [\"1\", \"2\", \"3\", \"4\", \"5\", \"6\", \"7\", \"8\", \"9\", \"0\"]
-  // let whitespace = [\" \", \"\r\n\", \"\n\",\"\r\", \"\t\"]
-  // let literal = [
-  //   {key: \"{\", value: LeftBrace({})},
-  //   {key: \"}\", value: RightBrace({})},
-  //   {key: \"[\", value: LeftBracket({})},
-  //   {key: \"]\", value: RightBracket({})},
-  //   {key: \":\", value: Colon({})},
-  //   {key: \",\", value: Comma({})}
-  // ]
+  // "
 
-  // let read_string = !fix((read_string, gathered, rest) -> { 
-  //   !pop_prefix(rest, \"\\\\\\\"\", 
-  //     read_string(string.append(gathered, \"\\\"\")), (_) -> {
-  //     !pop_prefix(rest, \"\\\"\", 
-  //       (rest) -> { Ok({gathered, rest}) }, 
-  //       (_) -> {
-  //         match string.pop_grapheme(rest) {
-  //           Ok({head, tail}) -> { read_string(string.append(gathered, head), tail) }
-  //           Error(_) -> { Error({}) }
-  //         }
-  //       }
-  //     )
-  //   })
-  // })(\"\")
-
-  // let read_number = !fix((read_number, gathered, rest) -> { 
-  //   match string.pop_grapheme(rest) {
-  //     Ok({head, tail}) -> { 
-  //       match list.contains([\".\", ..digits], head) {
-  //         True(_) -> { read_number(string.append(gathered, head), tail) }
-  //         False(_) -> { {gathered, rest} }
-  //       }
-  //     }
-  //     Error(_) -> { {gathered, rest} }
-  //   }
-  // })
-
-  // let tokenise = !fix((tokenise, acc, rest) -> {
-  //   !pop_prefix(rest, \"true\", tokenise([True({}), ..acc]), (_) -> { 
-  //     !pop_prefix(rest, \"false\", tokenise([False({}), ..acc]), (_) -> { 
-  //       !pop_prefix(rest, \"null\", tokenise([Null({}), ..acc]), (_) -> { 
-  //         !pop_prefix(rest, \"\\\"\",
-  //           (rest) -> {
-  //             match read_string(rest) {
-  //               Ok({gathered, rest}) -> { tokenise([String(gathered), ..acc], rest) }
-  //               Error(_) -> { list.reverse([UnterminatedString(rest), ..acc]) }
-  //             }
-  //           }, 
-  //           (_) -> { 
-  //             match !pop_grapheme(rest) {
-  //               Ok({head, tail}) -> { 
-  //                 match list.contains(whitespace, head) {
-  //                   True(_) -> { tokenise(acc, tail) }
-  //                   False(_) -> { 
-  //                     match keylist.find(literal, head) {
-  //                       Ok(token) -> { tokenise([token, ..acc], tail) }
-  //                       Error(_) -> { 
-  //                         match list.contains([\"-\", ..digits], head) {
-  //                           True(_) -> { 
-  //                             let {gathered, rest} = read_number(head, tail)
-  //                             tokenise([Number(gathered), ..acc], rest)
-  //                           }
-  //                           False(_) -> { tokenise([IllegalCharachter(head), ..acc], tail) }
-  //                         }
-  //                       }
-  //                     }
-  //                   }
-  //                 }
-  //               }
-  //               Error(_) -> { list.reverse(acc) }
-  //             }
-  //           }
-  //         )
-  //       })
-  //     })
-  //   })
-  // })
-  // let run = (_) -> {
-  //   tokenise([],\"{
-  //     \\\"results\\\": {
-  //         \\\"date\\\": \\\"2024-06-26\\\",
-  //         \\\"sunrise\\\": \\\"5:45:46 AM\\\",
-  //         \\\"sunset\\\": \\\"8:38:48 PM\\\",
-  //         \\\"first_light\\\": \\\"3:46:58 AM\\\",
-  //         \\\"last_light\\\": \\\"10:37:36 PM\\\",
-  //         \\\"dawn\\\": \\\"5:13:44 AM\\\",
-  //         \\\"dusk\\\": \\\"9:10:50 PM\\\",
-  //         \\\"solar_noon\\\": \\\"1:12:17 PM\\\",
-  //         \\\"golden_hour\\\": \\\"7:58:53 PM\\\",
-  //         \\\"day_length\\\": \\\"14:53:01\\\",
-  //         \\\"timezone\\\": \\\"America/New_York\\\",
-  //         \\\"utc_offset\\\": -240
-  //     },
-  //     \\\"status\\\": \\\"OK\\\"
-  // }\")
   // } ",
   //     ),
   //     #(
   //       h.div([], [text("parseing")]),
-  //       "let { list, debug, equal } = #standard_library
+  //       "let { list, debug, equal } = #h1c86c927
 
   // let string = (k, tokens) -> {
   //   !uncons(tokens,
@@ -387,7 +397,7 @@ let run = (_) -> {
   //     ),
   //     #(
   //       h.div([], [text("HTTP")]),
-  //       "let { http, mime, string } = #standard_library
+  //       "let { http, mime, string } = #h1c86c927
 
   // let expect = (result) -> {
   //   match result {
@@ -412,7 +422,7 @@ let run = (_) -> {
   //     ),
   //     #(
   //       h.div([], [text("cat")]),
-  //       "let { debug } = #standard_library
+  //       "let { debug } = #h1c86c927
 
   // let run = (_) -> {
   //   let _ = perform Log(debug(!string_to_binary(\"\\\"\")))

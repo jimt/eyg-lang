@@ -1,8 +1,3 @@
-import eyg/analysis/inference/levels_j/contextual as j
-import eyg/analysis/type_/binding
-import eyg/analysis/type_/binding/error
-import eyg/analysis/type_/isomorphic as type_
-import eyg/parse
 import eyg/parse/parser.{type Span}
 import eyg/runtime/break
 import eyg/runtime/cast
@@ -75,6 +70,7 @@ pub type Runner(a) {
 
 pub type State {
   State(
+    loading: List(String),
     references: snippet.Referenced,
     sections: List(
       #(Element(Message), String, Result(snippet.Snippet, parser.Reason)),
@@ -101,33 +97,16 @@ pub fn init(_) {
     list.map_fold(sections, snippet.State([], references), fn(acc, section) {
       let #(context, code) = section
       let #(acc, snippet) = snippet.process_snippet(acc, code)
-      io.debug({
-        case snippet {
-          Ok(snippet.Snippet(errors: errors, ..), ..) -> errors
-          _ -> []
-        }
-      })
       #(acc, #(context, code, snippet))
     })
-  let missing =
-    list.filter_map(sections, fn(section) {
-      let #(_, _, snippet) = section
-      use snippet.Snippet(errors: errors, ..) <- result.try(snippet)
-      Ok(
-        list.filter_map(errors, fn(error) {
-          let #(reason, _span) = error
-          case reason {
-            error.MissingVariable("#" <> ref) -> Ok(ref)
-            _ -> Error(Nil)
-          }
-        }),
-      )
-    })
-    |> list.flatten
-    |> io.debug
 
-  let state = State(references, sections, None)
-  #(state, effect.none())
+  let missing =
+    list.flat_map(sections, fn(section) {
+      let #(_, _, snippet) = section
+      snippet.missing_references(snippet)
+    })
+
+  let state = State(missing, references, sections, None)
   #(state, effect.from(load_new_references(missing, _)))
 }
 
@@ -286,7 +265,8 @@ pub fn update(state, message) {
     }
 
     LoadedReference(reference, expression, execute_after) -> {
-      io.debug(reference)
+      let State(loading: loading, ..) = state
+      let loading = list.filter(loading, fn(l) { l != reference })
       let assert #(errors, Ok(#(r, references))) =
         snippet.install_code(references, [], expression)
       // TODO do we care about errors 
@@ -309,7 +289,7 @@ pub fn update(state, message) {
       //   }
       //   other -> #(other, effect.none())
       // }
-      let state = State(..state, references: references)
+      let state = State(..state, references: references, loading: loading)
       #(state, effect.none())
     }
     CloseRunner -> {

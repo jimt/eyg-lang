@@ -3,6 +3,8 @@ import eyg/analysis/type_/binding.{type Poly}
 import eyg/analysis/type_/binding/error
 import eyg/analysis/type_/isomorphic as t
 import eyg/parse
+import eyg/parse/parser.{type Span}
+import eyg/runtime/break
 import eyg/runtime/interpreter/runner as r
 import eyg/runtime/interpreter/state.{type Env} as istate
 import eyg/runtime/value as v
@@ -27,14 +29,15 @@ import harness/stdlib
 // TODO run functions
 // create a block type as returned can have before and after
 // is it worth keeping results in returned assigns maybe show why can't run and highlight errors in the span
+// share button
 
 type Value =
-  v.Value(
-    #(Int, Int),
-    #(List(#(istate.Kontinue(#(Int, Int)), #(Int, Int))), Env(#(Int, Int))),
-  )
+  v.Value(Span, #(List(#(istate.Kontinue(Span), Span)), Env(Span)))
 
-type Referenced {
+type BreakReason =
+  break.Reason(Span, #(List(#(istate.Kontinue(Span), Span)), Env(Span)))
+
+pub type Referenced {
   Referenced(
     count: Int,
     reference_values: Dict(String, Value),
@@ -42,8 +45,18 @@ type Referenced {
   )
 }
 
-type State {
+pub type State {
   State(scope: List(#(String, Result(String, Nil))), referenced: Referenced)
+}
+
+pub type Snippet {
+  // line number and reference
+  Snippet(
+    source: String,
+    assignments: List(#(Int, Result(String, BreakReason))),
+    errors: List(#(error.Reason, Span)),
+    final: State,
+  )
 }
 
 fn empty() {
@@ -90,13 +103,11 @@ fn process(sections, referenced) {
             let errors = list.append(errors, new_errors)
             case result {
               Ok(#(ref, referenced)) -> {
-                // case ok errors on acc
-                // need to add an any var to the scope incases it doesn't work out
                 let scope = [#(label, Ok(ref)), ..scope]
                 let acc = #(errors, State(scope, referenced))
                 #(acc, #(line_number, Ok(ref)))
               }
-              Error(reason) -> {
+              Error(#(reason, _meta, _env, _stack)) -> {
                 let scope = [#(label, Error(Nil)), ..scope]
                 let acc = #(errors, State(scope, referenced))
                 #(acc, #(line_number, Error(reason)))
@@ -104,7 +115,7 @@ fn process(sections, referenced) {
             }
           })
         let #(errors, state) = acc
-        #(state, Ok(#(assignments, errors, state)))
+        #(state, Ok(Snippet(code, assignments, errors, state)))
       }
     }
   })
@@ -167,10 +178,10 @@ pub fn simple_assignments_test() {
 
   let State(_, referenced) = acc
   let Referenced(_, values, types) = referenced
-  let assert [section] = sections
-  let #(assignments, errors, _state) = should.be_ok(section)
-  should.equal(errors, [])
-  let assert [#(1, Ok(ref_x)), #(2, Ok(ref_y))] = assignments
+  let assert [snippet] = sections
+  let snippet = should.be_ok(snippet)
+  should.equal(snippet.errors, [])
+  let assert [#(1, Ok(ref_x)), #(2, Ok(ref_y))] = snippet.assignments
 
   let value_x = should.be_ok(dict.get(values, ref_x))
   should.equal(value_x, v.Integer(1))
@@ -191,10 +202,10 @@ pub fn simple_var_test() {
   let State(_, referenced) = acc
   let Referenced(_, values, types) = referenced
 
-  let assert [section] = sections
-  let #(assignments, errors, _state) = should.be_ok(section)
-  should.equal(errors, [])
-  let assert [#(1, Ok(ref_x)), #(2, Ok(ref_y))] = assignments
+  let assert [snippet] = sections
+  let snippet = should.be_ok(snippet)
+  should.equal(snippet.errors, [])
+  let assert [#(1, Ok(ref_x)), #(2, Ok(ref_y))] = snippet.assignments
 
   let value_x = should.be_ok(dict.get(values, ref_x))
   should.equal(value_x, v.Integer(1))
@@ -220,11 +231,11 @@ pub fn known_reference_test() {
   let State(_, referenced) = acc
   let Referenced(_, values, types) = referenced
 
-  let assert [section] = sections
-  let #(assignments, errors, _state) = should.be_ok(section)
+  let assert [snippet] = sections
+  let snippet = should.be_ok(snippet)
+  should.equal(snippet.errors, [])
+  let assert [#(1, Ok(ref_a))] = snippet.assignments
 
-  should.equal(errors, [])
-  let assert [#(1, Ok(ref_a))] = assignments
   let value_a = should.be_ok(dict.get(values, ref_a))
   should.equal(value_a, v.Record([#("foo", v.Tagged("Ok", v.Integer(2)))]))
   let type_a = should.be_ok(dict.get(types, ref_a))
@@ -244,10 +255,10 @@ pub fn type_error_test() {
   let State(_, referenced) = acc
   let Referenced(_, values, types) = referenced
 
-  let assert [section] = sections
-  let #(assignments, errors, _state) = should.be_ok(section)
-  let assert [#(error.TypeMismatch(_, t.Integer), _span)] = errors
-  let assert [#(1, Ok(ref_f))] = assignments
+  let assert [snippet] = sections
+  let snippet = should.be_ok(snippet)
+  let assert [#(error.TypeMismatch(_, t.Integer), _span)] = snippet.errors
+  let assert [#(1, Ok(ref_f))] = snippet.assignments
   let _value = should.be_ok(dict.get(values, ref_f))
   let _type = should.be_ok(dict.get(types, ref_f))
 }
@@ -261,13 +272,11 @@ let l = k"
   let State(_, referenced) = acc
   let Referenced(_, values, types) = referenced
 
-  let assert [section] = sections
-  let #(assignments, errors, _state) = should.be_ok(section)
-  let assert [#(error.MissingVariable("j"), _span)] = errors
+  let assert [snippet] = sections
+  let snippet = should.be_ok(snippet)
+  let assert [#(error.MissingVariable("j"), _span)] = snippet.errors
   should.equal(dict.size(values), 0)
   should.equal(dict.size(types), 0)
-  // mostly can run with type errors
-  // io.debug(assignments)
 }
 
 fn ref(hash) {
@@ -283,7 +292,3 @@ pub fn replace_test() {
   |> annotated.drop_annotation()
   |> should.equal(e.Let("x", ref("123"), e.Variable("x")))
 }
-// reference -> poly + value
-// get the line information
-// run a hash so value called with term ->
-//  and hash for whole type for whole 

@@ -10,12 +10,18 @@ import eyg/runtime/interpreter/state.{type Env} as istate
 import eyg/runtime/value as v
 import eyg/text/text
 import eygir/annotated
+import gleam/bit_array
+import gleam/crypto
 import gleam/dict.{type Dict}
 import gleam/dynamic
 import gleam/int
+import gleam/io
+import gleam/javascript/promise
 import gleam/list
 import gleam/result.{try}
+import gleam/string
 import harness/stdlib
+import plinth/browser/crypto/subtle
 
 type Value =
   v.Value(Span, #(List(#(istate.Kontinue(Span), Span)), Env(Span)))
@@ -39,6 +45,15 @@ pub type Snippet {
     errors: List(#(error.Reason, Span)),
     final: State,
   )
+}
+
+pub fn hash(expression) {
+  let expression = annotated.drop_annotation(expression)
+  subtle.digest(<<string.inspect(expression):utf8>>)
+  |> promise.map(io.debug)
+  |> promise.map(result.unwrap(_, <<>>))
+  |> promise.map(bit_array.base16_encode(_))
+  |> promise.map(io.debug)
 }
 
 pub fn empty() {
@@ -135,6 +150,8 @@ pub fn install_code(acc, type_env, expression) {
   let handlers = dict.new()
   #(errors, {
     use value <- try(r.execute(expression, env, handlers))
+    // let ref = "h" <> 
+    hash(expression)
 
     // if expression evaluates we don't need to worry about eff
     // because evaluation is pure it will always be the same value

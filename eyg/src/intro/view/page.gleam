@@ -233,7 +233,38 @@ pub fn content(state) {
       //     ],
       //   ),
       // ]),
-
+      h.div(
+        [
+          a.class(" "),
+          a.style([
+            #("display", "grid"),
+            #("grid-template-columns", "8em 100ch"),
+          ]),
+        ],
+        [
+          h.div([], []),
+          h.div(
+            [
+              a.class(
+                "bg-gray-200 bg-opacity-70 p-2 rounded border border-white",
+              ),
+            ],
+            [text("hash "), text(document.hash)],
+          ),
+          h.div([], []),
+          h.div(
+            [
+              a.class(
+                "bg-gray-200 bg-opacity-70 p-2 rounded border border-white",
+              ),
+            ],
+            [
+              text("public "),
+              text(string.inspect(snippet.external_assigns(document))),
+            ],
+          ),
+        ],
+      ),
       h.div(
         [
           a.class(" "),
@@ -245,7 +276,7 @@ pub fn content(state) {
         list.flat_map(loading, fn(loading) {
           [
             h.div([], []),
-            h.div([a.class("bg-gray-200 p-2 rounded")], [
+            h.div([a.class("bg-gray-200 bg-opacity-70 p-2 rounded")], [
               text("loading "),
               text(loading),
               text("..."),

@@ -39,6 +39,7 @@ pub type State {
 
 pub type Document(a) {
   Document(
+    hash: String,
     scope: List(#(String, Result(String, Nil))),
     sections: List(Snippet(a)),
   )
@@ -86,19 +87,80 @@ pub fn process_document(sections, references) {
       let #(acc, processed) = process_snippet(acc, code)
       #(acc, Snippet(context, code, processed))
     })
-  #(Document(scope, sections), references)
+  build(scope, sections, references)
 }
 
 pub fn missing_references(doc) {
-  let Document(_scope, sections) = doc
+  let Document(_hash, _scope, sections) = doc
   list.flat_map(sections, fn(section) {
     let Snippet(_, _, processed) = section
     missing_references_per_section(processed)
   })
 }
 
+// scope works up from last
+fn do_gather_public(scope, acc) {
+  case scope {
+    [] -> acc
+    [#(label, Ok(_)), ..rest] ->
+      case list.contains(acc, label) {
+        True -> do_gather_public(rest, acc)
+        False -> do_gather_public(rest, [label, ..acc])
+      }
+    [_, ..rest] -> do_gather_public(rest, acc)
+  }
+}
+
+pub fn external_assigns(document) {
+  let Document(_hash, scope, _sections) = document
+  do_gather_public(scope, [])
+}
+
+fn build(scope, sections: List(Snippet(_)), references) {
+  let exports =
+    do_gather_public(scope, [])
+    |> list.reverse()
+    |> list.fold(#(annotated.Empty, #(0, 0)), fn(acc, label) {
+      #(
+        annotated.Apply(
+          #(
+            annotated.Apply(
+              #(annotated.Extend(label), #(0, 0)),
+              #(annotated.Variable(label), #(0, 0)),
+            ),
+            #(0, 0),
+          ),
+          acc,
+        ),
+        #(0, 0),
+      )
+    })
+
+  let reversed =
+    list.filter_map(sections, fn(section) {
+      use #(#(assignments, _tail), _rest) <- try(parse.block_from_string(
+        section.code,
+      ))
+      Ok(assignments)
+    })
+    |> list.reverse
+    |> list.flatten()
+    |> io.debug
+  let total =
+    list.fold(reversed, exports, fn(acc, assign) {
+      let #(label, value, span) = assign
+      #(annotated.Let(label, value, acc), span)
+    })
+  let #(new_errors, result) = install_code(references, [], total)
+  let #(ref, references) = case result {
+    Ok(#(ref, references)) -> #(ref, references)
+    Error(_) -> #("", references)
+  }
+  #(Document(ref, scope, sections), references)
+}
+
 pub fn update_at(document, index, new, references) {
-  let Document(_scope, sections) = document
+  let Document(_hash, _scope, sections) = document
   let #(pre, post) = list.split(sections, index)
   let scope =
     list.reverse(pre)
@@ -127,7 +189,7 @@ pub fn update_at(document, index, new, references) {
       #(acc, Snippet(context, code, snippet))
     })
   let sections = list.append(pre, post)
-  #(Document(scope, sections), references)
+  build(scope, sections, references)
 }
 
 pub fn process(sections, referenced) {

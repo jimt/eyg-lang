@@ -37,9 +37,20 @@ pub type State {
   State(scope: List(#(String, Result(String, Nil))), referenced: Referenced)
 }
 
-pub type Snippet {
+pub type Document(a) {
+  Document(
+    scope: List(#(String, Result(String, Nil))),
+    sections: List(Snippet(a)),
+  )
+}
+
+pub type Snippet(c) {
+  Snippet(context: c, code: String, processed: Result(Processed, parser.Reason))
+}
+
+pub type Processed {
   // line number and reference
-  Snippet(
+  Processed(
     // source: String,
     assignments: List(#(Int, Result(String, BreakReason))),
     errors: List(#(error.Reason, Span)),
@@ -66,6 +77,57 @@ pub fn empty() {
 
 pub fn process_new(sections) {
   process(sections, empty())
+}
+
+pub fn process_document(sections, references) {
+  let #(State(scope, references), sections) =
+    list.map_fold(sections, State([], references), fn(acc, section) {
+      let #(context, code) = section
+      let #(acc, processed) = process_snippet(acc, code)
+      #(acc, Snippet(context, code, processed))
+    })
+  #(Document(scope, sections), references)
+}
+
+pub fn missing_references(doc) {
+  let Document(_scope, sections) = doc
+  list.flat_map(sections, fn(section) {
+    let Snippet(_, _, processed) = section
+    missing_references_per_section(processed)
+  })
+}
+
+pub fn update_at(document, index, new, references) {
+  let Document(_scope, sections) = document
+  let #(pre, post) = list.split(sections, index)
+  let scope =
+    list.reverse(pre)
+    |> list.find_map(fn(section) {
+      let Snippet(_, _, snippet) = section
+      case snippet {
+        Ok(Processed(final: State(scope: scope, ..), ..)) -> Ok(scope)
+        Error(_) -> Error(Nil)
+      }
+    })
+    |> result.unwrap([])
+  let post = case post {
+    [Snippet(context, _old, _drop_cache), ..rest] -> [
+      #(context, new),
+      ..list.map(rest, fn(s) { #(s.context, s.code) })
+    ]
+    [] -> {
+      panic as "out of range"
+      // [#(h.div([], [element.text("new section")]), new)]
+    }
+  }
+  let #(State(scope, references), post) =
+    list.map_fold(post, State(scope, references), fn(acc, section) {
+      let #(context, code) = section
+      let #(acc, snippet) = process_snippet(acc, code)
+      #(acc, Snippet(context, code, snippet))
+    })
+  let sections = list.append(pre, post)
+  #(Document(scope, sections), references)
 }
 
 pub fn process(sections, referenced) {
@@ -117,14 +179,14 @@ pub fn process_snippet(state, code) {
           }
         })
       let #(errors, state) = acc
-      #(state, Ok(Snippet(assignments, errors, state)))
+      #(state, Ok(Processed(assignments, errors, state)))
     }
   }
 }
 
-pub fn missing_references(r) {
+fn missing_references_per_section(r) {
   case r {
-    Ok(Snippet(errors: errors, ..)) ->
+    Ok(Processed(errors: errors, ..)) ->
       list.filter_map(errors, fn(error) {
         let #(reason, _span) = error
         case reason {

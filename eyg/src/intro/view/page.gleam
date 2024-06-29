@@ -211,7 +211,7 @@ fn logs1(logs) {
 }
 
 pub fn content(state) {
-  let state.State(loading: loading, sections: sections, ..) = state
+  let state.State(loading: loading, document: document, ..) = state
   h.div([a.class("relative vstack")], [
     h.div([a.class("cover expand")], [
       h.h1([a.class("p-4 text-6xl")], [text("Eyg")]),
@@ -253,7 +253,7 @@ pub fn content(state) {
           ]
         }),
       ),
-      h.div([a.class("")], list.index_map(sections, section)),
+      h.div([a.class("")], list.index_map(document.sections, section)),
     ]),
     // bad things with min h 100% in relative maybe fixed is better than sticky
     // sticky works as long as there is content
@@ -284,12 +284,12 @@ pub fn separate_spans(spans) {
 }
 
 fn section(section, index) {
-  let #(context, code, snippet) = section
+  let snippet.Snippet(context, code, snippet) = section
 
   let on_update = fn(new) { state.EditCode(index, new) }
 
   let errors = case snippet {
-    Ok(snippet.Snippet(errors: errors, ..)) ->
+    Ok(snippet.Processed(errors: errors, ..)) ->
       errors
       |> list.map(fn(error) { #(debug.render_reason(error.0), error.1) })
     Error(reason) -> {
@@ -306,7 +306,7 @@ fn section(section, index) {
   let #(error_messages, error_spans) = list.unzip(errors)
 
   let targets = case snippet {
-    Ok(snippet.Snippet(assignments: assignments, ..)) -> {
+    Ok(snippet.Processed(assignments: assignments, ..)) -> {
       let #(_, pushed) =
         // lines are 1 indexed probably worth Fixing TODO?
         list.fold(assignments, #(1, []), fn(acc, assignment) {

@@ -24,7 +24,7 @@ import harness/fetch
 import harness/http
 import harness/stdlib
 import intro/content
-import intro/snippet.{Snippet}
+import intro/snippet.{Processed}
 import lustre/effect
 import lustre/element.{type Element}
 import lustre/element/html as h
@@ -70,9 +70,7 @@ pub type State {
   State(
     loading: List(String),
     references: snippet.Referenced,
-    sections: List(
-      #(Element(Message), String, Result(snippet.Snippet, parser.Reason)),
-    ),
+    document: snippet.Document(Element(Message)),
     running: Option(#(String, Runner(Span))),
   )
 }
@@ -80,7 +78,7 @@ pub type State {
 pub fn init(_) {
   let references = snippet.empty()
   // Local storage for between pages
-  // could renmae type Snippet state to Acc
+  // could renmae type snippet state to Acc
   let sections = case uri.parse(window.location()) {
     Ok(uri.Uri(path: "/guide/" <> slug, ..)) ->
       case list.key_find(content.pages(), slug) {
@@ -91,20 +89,10 @@ pub fn init(_) {
       []
     }
   }
-  let #(snippet.State(_scope, references), sections) =
-    list.map_fold(sections, snippet.State([], references), fn(acc, section) {
-      let #(context, code) = section
-      let #(acc, snippet) = snippet.process_snippet(acc, code)
-      #(acc, #(context, code, snippet))
-    })
+  let #(doc, references) = snippet.process_document(sections, references)
+  let missing = snippet.missing_references(doc)
 
-  let missing =
-    list.flat_map(sections, fn(section) {
-      let #(_, _, snippet) = section
-      snippet.missing_references(snippet)
-    })
-
-  let state = State(missing, references, sections, None)
+  let state = State(missing, references, doc, None)
   #(state, effect.from(load_new_references(missing, _)))
 }
 
@@ -189,35 +177,12 @@ pub fn update(state, message) {
   let State(references: references, ..) = state
   case message {
     EditCode(index, new) -> {
-      let State(sections: sections, ..) = state
-      let #(pre, post) = list.split(sections, index)
-      let scope =
-        list.reverse(pre)
-        |> list.find_map(fn(section) {
-          let #(_, _, snippet) = section
-          case snippet {
-            Ok(Snippet(final: snippet.State(scope: scope, ..), ..)) -> Ok(scope)
-            Error(_) -> Error(Nil)
-          }
-        })
-        |> result.unwrap([])
-      let post = case post {
-        [#(context, _old, _drop_cache), ..rest] -> [
-          #(context, new),
-          ..list.map(rest, fn(x) { #(x.0, x.1) })
-        ]
-        [] -> [#(h.div([], [element.text("new section")]), new)]
-      }
-      let #(snippet.State(referenced: references, ..), post) =
-        list.map_fold(post, snippet.State(scope, references), fn(acc, section) {
-          let #(context, code) = section
-          let #(acc, snippet) = snippet.process_snippet(acc, code)
-          #(acc, #(context, code, snippet))
-        })
-      let sections = list.append(pre, post)
-      let state = State(..state, sections: sections, references: references)
-      #(state, effect.none())
-      // #(state, effect.from(load_new_references(sections, references, _)))
+      let State(document: document, ..) = state
+      let #(document, references) =
+        snippet.update_at(document, index, new, references)
+      let missing = snippet.missing_references(document)
+      let state = State(..state, document: document, references: references)
+      #(state, effect.from(load_new_references(missing, _)))
     }
     UpdateSuspend(for) -> {
       let State(running: running, ..) = state

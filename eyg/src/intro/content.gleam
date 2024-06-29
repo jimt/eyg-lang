@@ -15,6 +15,7 @@ set_username(\"123124248p574975345\", \"Bob\")"
 pub fn pages() {
   [
     #("intro", [
+      #(h.p([], [text("whats the point")]), "let x = #hf39c8d67"),
       #(
         h.p([], [text("whats the point")]),
         "let { string } = #h1c86c927

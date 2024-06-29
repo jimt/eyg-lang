@@ -80,13 +80,26 @@ pub fn process_new(sections) {
   process(sections, empty())
 }
 
+fn do_process_document(sections, references) {
+  list.map_fold(sections, State([], references), fn(acc, section) {
+    let #(context, code) = section
+    let #(acc, processed) = process_snippet(acc, code)
+    #(acc, Snippet(context, code, processed))
+  })
+}
+
+pub fn document_to_code(sections, references) {
+  let #(State(scope, _references), sections) =
+    do_process_document(sections, references)
+  let total = global(scope, sections)
+  let ref = "h" <> hash(total)
+  #(ref, annotated.drop_annotation(total))
+}
+
 pub fn process_document(sections, references) {
   let #(State(scope, references), sections) =
-    list.map_fold(sections, State([], references), fn(acc, section) {
-      let #(context, code) = section
-      let #(acc, processed) = process_snippet(acc, code)
-      #(acc, Snippet(context, code, processed))
-    })
+    do_process_document(sections, references)
+
   build(scope, sections, references)
 }
 
@@ -116,7 +129,7 @@ pub fn external_assigns(document) {
   do_gather_public(scope, [])
 }
 
-fn build(scope, sections: List(Snippet(_)), references) {
+pub fn global(scope, sections: List(Snippet(_))) {
   let exports =
     do_gather_public(scope, [])
     |> list.reverse()
@@ -145,12 +158,15 @@ fn build(scope, sections: List(Snippet(_)), references) {
     })
     |> list.reverse
     |> list.flatten()
-    |> io.debug
-  let total =
-    list.fold(reversed, exports, fn(acc, assign) {
-      let #(label, value, span) = assign
-      #(annotated.Let(label, value, acc), span)
-    })
+
+  list.fold(reversed, exports, fn(acc, assign) {
+    let #(label, value, span) = assign
+    #(annotated.Let(label, value, acc), span)
+  })
+}
+
+fn build(scope, sections, references) {
+  let total = global(scope, sections)
   let #(new_errors, result) = install_code(references, [], total)
   let #(ref, references) = case result {
     Ok(#(ref, references)) -> #(ref, references)

@@ -1,5 +1,7 @@
 import eygir/decode
+import eygir/encode
 import gleam/bit_array
+import gleam/io
 import gleam/list
 import gleam/pair
 import gleam/string
@@ -47,17 +49,30 @@ fn build_intro() {
 
   use json <- t.do(t.read("saved/json.json"))
 
-  let #(pages, content) = content.pages() |> list.unzip
+  let #(pages, _content) = content.pages() |> list.unzip
+  let store =
+    list.map(content.pages(), fn(page) {
+      let #(name, sections) = page
+      let #(ref, code) = snippet.document_to_code(sections, snippet.empty())
+      let content = <<encode.to_json(code):utf8>>
+      io.debug(#(name, ref))
+      #("/saved/" <> ref <> ".json", content)
+    })
 
-  t.done([
-    #("/intro.js", <<script:utf8>>),
-    // #("/intro/index.html", index),
-    #("/intro/index.css", style),
-    #("/saved/std.json", stdlib),
-    #("/saved/h" <> std_hash <> ".json", stdlib),
-    #("/saved/json.json", json),
-    ..list.map(pages, fn(page) { #("/guide/" <> page <> "/index.html", index) })
-  ])
+  t.done(
+    [
+      #("/intro.js", <<script:utf8>>),
+      // #("/intro/index.html", index),
+      #("/intro/index.css", style),
+      #("/saved/std.json", stdlib),
+      #("/saved/h" <> std_hash <> ".json", stdlib),
+      #("/saved/json.json", json),
+      ..list.map(pages, fn(page) {
+        #("/guide/" <> page <> "/index.html", index)
+      })
+    ]
+    |> list.append(store),
+  )
 }
 
 pub fn preview(args) {

@@ -230,10 +230,17 @@ pub fn update(state, message) {
     LoadedReference(reference, expression, execute_after) -> {
       let State(loading: loading, ..) = state
       let loading = list.filter(loading, fn(l) { l != reference })
-      let assert #(errors, Ok(#(r, references))) =
+      let assert #(errors, result) =
         snippet.install_code(references, [], expression)
       // TODO do we care about errors 
-
+      let references = case result {
+        Ok(#(r, references)) -> references
+        Error(reason) -> {
+          // io.debug(reason)
+          io.debug(errors)
+          references
+        }
+      }
       // let State(references: references, running: running, ..) = state
       // io.println("Added reference: " <> reference)
       // let references = dict.insert(references, reference, value)

@@ -16,10 +16,11 @@ pub fn replace_at(original, from, to, new) {
   |> string.concat
 }
 
-@external(javascript, "../plinth_ffi.js", "foldGraphmemes")
+// TODO move to stringx
+@external(javascript, "../plinth_ffi.mjs", "foldGraphmemes")
 pub fn fold_graphemes(a: String, b: a, c: fn(a, String) -> a) -> a
 
-@external(javascript, "../plinth_ffi.js", "foldGraphmemes")
+@external(javascript, "../plinth_ffi.mjs", "foldGraphmemes")
 pub fn index_fold_graphemes(a: String, b: a, c: fn(a, String, Int) -> a) -> a
 
 pub fn wrap(content, pre, post) {

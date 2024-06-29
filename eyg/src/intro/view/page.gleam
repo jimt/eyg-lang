@@ -505,7 +505,11 @@ fn text_input(code, on_update, error_spans) {
   )
 }
 
+import gleam/stringx
+
 fn highlighted(code) {
+  // TODO 
+  stringx.fold_graphemes(code, [], fn(acc, x) { [x, ..acc] })
   code
   |> lexer.lex()
   |> list.map(pair.first)
@@ -530,53 +534,72 @@ fn highlight_token(token) {
   h.span([a.class(class)], [text(content)])
 }
 
-fn underline(code, errors) {
+// fn underline(code, errors) {
+//   // let code = bit_array.from_string(code)
+//   let #(_, _, acc) =
+//     list.fold(errors, #(code, 0, []), fn(state, error) {
+//       let #(code, offset, acc) = state
+//       let #(start, end) = error
+//       let pre = start - offset
+//       let emp = end - start
+//       let offset = end
+//       let assert Ok(#(content, code)) = pop_bytes(code, pre, [])
+//       let acc = case content {
+//         "" -> acc
+//         content -> [h.span([], [text(content)]), ..acc]
+//       }
+//       let assert Ok(#(content, code)) = pop_bytes(code, emp, [])
+//       let acc = case content {
+//         "" -> acc
+//         content -> [
+//           h.span([a.style([#("text-decoration", "red wavy underline;")])], [
+//             text(content),
+//           ]),
+//           ..acc
+//         ]
+//       }
+//       #(code, offset, acc)
+//       // panic
+//       // case code {
+//       //   <<pre:bytes-size(pre), emp:bytes-size(emp), remaining:bytes>> -> {
+//       //     let assert Ok(pre) = bit_array.to_string(pre)
+//       //     let acc = case pre {
+//       //       "" -> acc
+//       //       content -> [h.span([], [text(content)]), ..acc]
+//       //     }
+//       //     let assert Ok(emp) = bit_array.to_string(emp)
+//       //     let acc = case emp {
+//       //       "" -> acc
+//       //       content -> [
+//       //         h.span([a.style([#("text-decoration", "red wavy underline;")])], [
+//       //           text(content),
+//       //         ]),
+//       //         ..acc
+//       //       ]
+//       //     }
+//       //     #(remaining, offset, acc)
+//       //   }
+//       //   _ -> panic
+//       // }
+//     })
+//   list.reverse(acc)
+// }
+
+fn underline(code, spans) {
   // let code = bit_array.from_string(code)
-  let #(_, _, acc) =
-    list.fold(errors, #(code, 0, []), fn(state, error) {
-      let #(code, offset, acc) = state
-      let #(start, end) = error
-      let pre = start - offset
-      let emp = end - start
+  let #(_, acc) =
+    list.fold(spans, #(0, []), fn(state, span) {
+      let #(offset, acc) = state
+      let #(start, end) = span
+      let pre =
+        h.span([], [text(stringx.byte_slice_range(code, offset, start))])
+      let range =
+        h.span([a.style([#("text-decoration", "red wavy underline;")])], [
+          text(stringx.byte_slice_range(code, start, end)),
+        ])
       let offset = end
-      let assert Ok(#(content, code)) = pop_bytes(code, pre, [])
-      let acc = case content {
-        "" -> acc
-        content -> [h.span([], [text(content)]), ..acc]
-      }
-      let assert Ok(#(content, code)) = pop_bytes(code, emp, [])
-      let acc = case content {
-        "" -> acc
-        content -> [
-          h.span([a.style([#("text-decoration", "red wavy underline;")])], [
-            text(content),
-          ]),
-          ..acc
-        ]
-      }
-      #(code, offset, acc)
-      // panic
-      // case code {
-      //   <<pre:bytes-size(pre), emp:bytes-size(emp), remaining:bytes>> -> {
-      //     let assert Ok(pre) = bit_array.to_string(pre)
-      //     let acc = case pre {
-      //       "" -> acc
-      //       content -> [h.span([], [text(content)]), ..acc]
-      //     }
-      //     let assert Ok(emp) = bit_array.to_string(emp)
-      //     let acc = case emp {
-      //       "" -> acc
-      //       content -> [
-      //         h.span([a.style([#("text-decoration", "red wavy underline;")])], [
-      //           text(content),
-      //         ]),
-      //         ..acc
-      //       ]
-      //     }
-      //     #(remaining, offset, acc)
-      //   }
-      //   _ -> panic
-      // }
+      let acc = [range, pre, ..acc]
+      #(offset, acc)
     })
   list.reverse(acc)
 }

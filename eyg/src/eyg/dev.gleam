@@ -47,7 +47,7 @@ fn build_intro() {
 
   use json <- t.do(t.read("saved/json.json"))
 
-  let pages = content.pages() |> list.map(pair.first)
+  let #(pages, content) = content.pages() |> list.unzip
 
   t.done([
     #("/intro.js", <<script:utf8>>),

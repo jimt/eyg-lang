@@ -6,71 +6,71 @@ import gleam/int
 import gleam/result.{try}
 
 pub fn unify(t1, t2, level, bindings) {
-  do_unify(t1, t2, level, bindings, Ok)
+  do_unify([#(t1, t2)], level, bindings)
 }
 
-fn do_unify(
-  t1,
-  t2,
-  level,
-  bindings,
-  k: fn(dict.Dict(Int, binding.Binding)) ->
-    Result(dict.Dict(Int, binding.Binding), _),
-) -> Result(dict.Dict(Int, binding.Binding), _) {
-  case t1, find(t1, bindings), t2, find(t2, bindings) {
-    t.Var(i), _, t.Var(j), _ if i == j -> k(bindings)
-    _, Ok(binding.Bound(t1)), _, _ -> do_unify(t1, t2, level, bindings, k)
-    _, _, _, Ok(binding.Bound(t2)) -> do_unify(t1, t2, level, bindings, k)
-    t.Var(i), Ok(binding.Unbound(level)), other, _
-    | other, _, t.Var(i), Ok(binding.Unbound(level))
-    -> {
-      use bindings <- try(occurs_and_levels(i, level, other, bindings, Ok))
-      k(dict.insert(bindings, i, binding.Bound(other)))
-    }
-    t.Fun(arg1, eff1, ret1), _, t.Fun(arg2, eff2, ret2), _ -> {
-      use bindings <- do_unify(arg1, arg2, level, bindings)
-      use bindings <- do_unify(eff1, eff2, level, bindings)
-      do_unify(ret1, ret2, level, bindings, k)
-    }
-    t.Integer, _, t.Integer, _ -> k(bindings)
-    t.Binary, _, t.Binary, _ -> k(bindings)
-    t.String, _, t.String, _ -> k(bindings)
+fn do_unify(ts, level, bindings) -> Result(dict.Dict(Int, binding.Binding), _) {
+  case ts {
+    [] -> Ok(bindings)
+    [#(t1, t2), ..ts] ->
+      case t1, find(t1, bindings), t2, find(t2, bindings) {
+        t.Var(i), _, t.Var(j), _ if i == j -> do_unify(ts, level, bindings)
+        _, Ok(binding.Bound(t1)), _, _ ->
+          do_unify([#(t1, t2), ..ts], level, bindings)
+        _, _, _, Ok(binding.Bound(t2)) ->
+          do_unify([#(t1, t2), ..ts], level, bindings)
+        t.Var(i), Ok(binding.Unbound(level)), other, _
+        | other, _, t.Var(i), Ok(binding.Unbound(level))
+        -> {
+          use bindings <- try(occurs_and_levels(i, level, other, bindings, Ok))
+          let bindings = dict.insert(bindings, i, binding.Bound(other))
+          do_unify(ts, level, bindings)
+        }
+        t.Fun(arg1, eff1, ret1), _, t.Fun(arg2, eff2, ret2), _ -> {
+          let ts = [#(arg1, arg2), #(eff1, eff2), #(ret1, ret2), ..ts]
+          do_unify(ts, level, bindings)
+        }
+        t.Integer, _, t.Integer, _ -> do_unify(ts, level, bindings)
+        t.Binary, _, t.Binary, _ -> do_unify(ts, level, bindings)
+        t.String, _, t.String, _ -> do_unify(ts, level, bindings)
 
-    t.List(el1), _, t.List(el2), _ -> do_unify(el1, el2, level, bindings, k)
-    t.Empty, _, t.Empty, _ -> k(bindings)
-    t.Record(rows1), _, t.Record(rows2), _ ->
-      do_unify(rows1, rows2, level, bindings, k)
-    t.Union(rows1), _, t.Union(rows2), _ ->
-      do_unify(rows1, rows2, level, bindings, k)
-    t.RowExtend(l1, field1, rest1), _, other, _
-    | other, _, t.RowExtend(l1, field1, rest1), _
-    -> {
-      use #(field2, rest2, bindings) <- try(rewrite_row(
-        l1,
-        other,
-        level,
-        bindings,
-        Ok,
-      ))
-      use bindings <- do_unify(field1, field2, level, bindings)
-      do_unify(rest1, rest2, level, bindings, k)
-    }
-    t.EffectExtend(l1, #(lift1, reply1), r1), _, other, _
-    | other, _, t.EffectExtend(l1, #(lift1, reply1), r1), _
-    -> {
-      use #(#(lift2, reply2), r2, bindings) <- try(rewrite_effect(
-        l1,
-        other,
-        level,
-        bindings,
-        Ok,
-      ))
-      use bindings <- do_unify(lift1, lift2, level, bindings)
-      use bindings <- do_unify(reply1, reply2, level, bindings)
-      do_unify(r1, r2, level, bindings, k)
-    }
-    t.Promise(t1), _, t.Promise(t2), _ -> do_unify(t1, t2, level, bindings, k)
-    _, _, _, _ -> Error(error.TypeMismatch(t1, t2))
+        t.List(el1), _, t.List(el2), _ ->
+          do_unify([#(el1, el2), ..ts], level, bindings)
+        t.Empty, _, t.Empty, _ -> do_unify(ts, level, bindings)
+        t.Record(rows1), _, t.Record(rows2), _ ->
+          do_unify([#(rows1, rows2), ..ts], level, bindings)
+        t.Union(rows1), _, t.Union(rows2), _ ->
+          do_unify([#(rows1, rows2), ..ts], level, bindings)
+        t.RowExtend(l1, field1, rest1), _, other, _
+        | other, _, t.RowExtend(l1, field1, rest1), _
+        -> {
+          use #(field2, rest2, bindings) <- try(rewrite_row(
+            l1,
+            other,
+            level,
+            bindings,
+            Ok,
+          ))
+          let ts = [#(field1, field2), #(rest1, rest2), ..ts]
+          do_unify(ts, level, bindings)
+        }
+        t.EffectExtend(l1, #(lift1, reply1), r1), _, other, _
+        | other, _, t.EffectExtend(l1, #(lift1, reply1), r1), _
+        -> {
+          use #(#(lift2, reply2), r2, bindings) <- try(rewrite_effect(
+            l1,
+            other,
+            level,
+            bindings,
+            Ok,
+          ))
+          let ts = [#(lift1, lift2), #(reply1, reply2), #(r1, r2), ..ts]
+          do_unify(ts, level, bindings)
+        }
+        t.Promise(t1), _, t.Promise(t2), _ ->
+          do_unify([#(t1, t2), ..ts], level, bindings)
+        _, _, _, _ -> Error(error.TypeMismatch(t1, t2))
+      }
   }
 }
 

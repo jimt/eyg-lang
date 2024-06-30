@@ -22,9 +22,13 @@ fn do_unify(ts, level, bindings) -> Result(dict.Dict(Int, binding.Binding), _) {
         t.Var(i), Ok(binding.Unbound(level)), other, _
         | other, _, t.Var(i), Ok(binding.Unbound(level))
         -> {
-          use bindings <- try(occurs_and_levels(i, level, other, bindings, Ok))
-          let bindings = dict.insert(bindings, i, binding.Bound(other))
-          do_unify(ts, level, bindings)
+          case occurs_and_levels(i, level, other, bindings, Ok) {
+            Ok(bindings) -> {
+              let bindings = dict.insert(bindings, i, binding.Bound(other))
+              do_unify(ts, level, bindings)
+            }
+            Error(reason) -> Error(reason)
+          }
         }
         t.Fun(arg1, eff1, ret1), _, t.Fun(arg2, eff2, ret2), _ -> {
           let ts = [#(arg1, arg2), #(eff1, eff2), #(ret1, ret2), ..ts]
@@ -44,28 +48,24 @@ fn do_unify(ts, level, bindings) -> Result(dict.Dict(Int, binding.Binding), _) {
         t.RowExtend(l1, field1, rest1), _, other, _
         | other, _, t.RowExtend(l1, field1, rest1), _
         -> {
-          use #(field2, rest2, bindings) <- try(rewrite_row(
-            l1,
-            other,
-            level,
-            bindings,
-            Ok,
-          ))
-          let ts = [#(field1, field2), #(rest1, rest2), ..ts]
-          do_unify(ts, level, bindings)
+          case rewrite_row(l1, other, level, bindings, Ok) {
+            Ok(#(field2, rest2, bindings)) -> {
+              let ts = [#(field1, field2), #(rest1, rest2), ..ts]
+              do_unify(ts, level, bindings)
+            }
+            Error(reason) -> Error(reason)
+          }
         }
         t.EffectExtend(l1, #(lift1, reply1), r1), _, other, _
         | other, _, t.EffectExtend(l1, #(lift1, reply1), r1), _
         -> {
-          use #(#(lift2, reply2), r2, bindings) <- try(rewrite_effect(
-            l1,
-            other,
-            level,
-            bindings,
-            Ok,
-          ))
-          let ts = [#(lift1, lift2), #(reply1, reply2), #(r1, r2), ..ts]
-          do_unify(ts, level, bindings)
+          case rewrite_effect(l1, other, level, bindings, Ok) {
+            Ok(#(#(lift2, reply2), r2, bindings)) -> {
+              let ts = [#(lift1, lift2), #(reply1, reply2), #(r1, r2), ..ts]
+              do_unify(ts, level, bindings)
+            }
+            Error(reason) -> Error(reason)
+          }
         }
         t.Promise(t1), _, t.Promise(t2), _ ->
           do_unify([#(t1, t2), ..ts], level, bindings)

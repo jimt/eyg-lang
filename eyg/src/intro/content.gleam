@@ -15,7 +15,7 @@ set_username(\"123124248p574975345\", \"Bob\")"
 pub fn pages() {
   [
     #("intro", [
-      #(h.p([], [text("whats the point")]), "let x = #hf39c8d67"),
+      #(h.p([], [text("whats the point")]), "let x = todo"),
       #(
         h.p([], [text("whats the point")]),
         "let { string } = #h1c86c927
@@ -131,9 +131,9 @@ let tokenise = !fix((tokenise, acc, rest) -> {
       })
     })
   })
-})
+})([])
 let run = (_) -> {
-  tokenise([],\"{
+  tokenise(\"{
       \\\"results\\\": {
         \\\"date\\\": \\\"2024-06-26\\\",
         \\\"sunrise\\\": \\\"5:45:46 AM\\\",
@@ -151,6 +151,121 @@ let run = (_) -> {
       \\\"status\\\": \\\"OK\\\"
     }\"
   )
+}",
+      ),
+      #(
+        fragment([h.h2([a.id("flat")], [text("Flat representation")])]),
+        "let { list, keylist, string } = #h1c86c927
+
+let flat = !fix((flat, acc, stack, tokens) -> {
+  !uncons(tokens, (_) -> { Error(UnexpectedEnd({})) }, (token, tokens) -> {
+    let depth = list.length(stack)
+    let k = (acc, stack) -> { 
+      !uncons(stack, (_) -> { Ok(list.reverse(acc)) },(_,_) -> { flat(acc, stack, tokens) })
+    }
+    match token {
+      True(_) -> { k([{term: True({}), depth}, ..acc], stack) }
+      False(_) -> { k([{term: False({}), depth}, ..acc], stack) }
+      Null(_) -> { k([{term: Null({}), depth}, ..acc], stack) }
+      Number(raw) -> { k([{term: Number(raw), depth}, ..acc], stack) }
+      String(raw) -> { k([{term: String(raw), depth}, ..acc], stack) }
+      LeftBracket(_) -> {
+        k([{term: List({}), depth}, ..acc], [List({}), ..stack])
+      }
+      Comma(_) -> {
+        !uncons(stack, (_) -> { Error(UnexpectedToken(token)) }, (current,_) -> { 
+          match current {
+            List(_) -> { k(acc, stack) }
+          }
+        })
+      }
+      RightBracket(_) -> {
+        !uncons(stack, (_) -> { Error(UnexpectedToken(token)) }, (current, stack) -> { 
+          match current {
+            List(_) -> { k(acc, stack) }
+          }
+        })
+      }
+
+      |(other) -> { Error(UnexpectedToken(other)) }
+    }
+    
+  })
+})([],[])
+
+let run = (_) -> {
+  let tokens = tokenise(\"[1,2]\")
+  flat(tokens)
+}",
+      ),
+      #(
+        fragment([h.h2([a.id("parse")], [text("Parsing")])]),
+        "
+
+
+let boolean = (flattened) -> {
+  !uncons(flattened, (_) -> { Error(UnexpectedEnd({})) }, ({term}, rest) -> {
+    match term {
+      True(_) -> { Ok({value: True({}), rest}) }
+      False(_) -> { Ok({value: False({}), rest})}
+      |(other) -> { Error(UnexpectedTerm(other)) }
+    }
+  })
+}
+
+let integer = (flattened) -> {
+  !uncons(flattened, (_) -> { Error(UnexpectedEnd({})) }, ({term}, rest) -> {
+    match term {
+      Number(raw) -> { match !int_parse(raw) {
+        Ok(value) -> { Ok({value: True({}), rest}) }
+        |(other) -> { Error(NotAnInteger(raw)) }
+      } }
+      |(other) -> { Error(UnexpectedTerm(other)) }
+    }
+  })
+}
+
+
+let l = (decoder, rest) -> {
+  !uncons(rest, (_) -> { Error(UnexpectedEnd({})) }, ({term, depth}, rest) -> {
+    match term {
+      List(_) -> {
+        !fix((pull, acc, rest)-> {
+          !uncons(rest, (_) -> { 
+            Ok({value: list.reverse(acc), rest}) 
+          }, ({depth: next},_)-> {
+            match !int_compare(next, depth) {
+              Gt(_) -> { match decoder(rest) {
+                Ok({value, rest}) -> { pull([value,..acc], rest) }
+                Error(reason) -> { Error(reason) }
+              } }
+              Lt(_) -> { Ok({value: list.reverse(acc), rest}) }
+            }
+          })
+        })([], rest)
+      }
+      |(other) -> { Error(UnexpectedTerm(other)) }
+    }
+  })
+}
+",
+      ),
+      #(
+        fragment([]),
+        "
+let parse = (decoder, raw) -> {
+  match flat(tokenise(raw)) {
+    Ok(flat) -> { match decoder(flat) {
+      Ok({value}) -> { Ok(value) }
+      Error(reason) -> { Error(reason) }
+    } }
+    Error(reason) -> { Error(reason) }
+  }
+}
+ 
+let run = (_) -> {
+  let _ = parse(l(boolean), \"[true]\")
+   parse(l(integer), \"[2]\")
 }",
       ),
     ]),

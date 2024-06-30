@@ -96,6 +96,11 @@ pub fn document_to_code(sections, references) {
   #(ref, annotated.drop_annotation(total))
 }
 
+pub fn reprocess_document(document: Document(_), references) {
+  list.map(document.sections, fn(section) { #(section.context, section.code) })
+  |> process_document(references)
+}
+
 pub fn process_document(sections, references) {
   let #(State(scope, references), sections) =
     do_process_document(sections, references)

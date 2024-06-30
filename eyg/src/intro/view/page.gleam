@@ -1,4 +1,5 @@
 import eyg/analysis/type_/binding/debug
+import eyg/analysis/type_/isomorphic as t
 import eyg/parse
 import eyg/parse/lexer
 import eyg/parse/parser
@@ -211,7 +212,12 @@ fn logs1(logs) {
 }
 
 pub fn content(state) {
-  let state.State(loading: loading, document: document, ..) = state
+  let state.State(
+    loading: loading,
+    document: document,
+    references: references,
+    ..,
+  ) = state
   h.div([a.class("relative vstack")], [
     h.div([a.class("cover expand")], [
       h.h1([a.class("p-4 text-6xl")], [text("Eyg")]),
@@ -284,13 +290,16 @@ pub fn content(state) {
           ]
         }),
       ),
-      h.div([a.class("")], list.index_map(document.sections, section)),
+      h.div(
+        [a.class("")],
+        list.index_map(document.sections, fn(s, i) { section(s, i, references) }),
+      ),
     ]),
     // bad things with min h 100% in relative maybe fixed is better than sticky
-    // sticky works as long as there is content
-    h.footer([a.class("cover sticky bottom-0 mt-64 bg-gray-900 text-white")], [
-      text("hi"),
-    ]),
+  // sticky works as long as there is content
+  // h.footer([a.class("cover sticky bottom-0 mt-64 bg-gray-900 text-white")], [
+  //   text("hi"),
+  // ]),
   ])
 }
 
@@ -314,7 +323,7 @@ pub fn separate_spans(spans) {
   spans
 }
 
-fn section(section, index) {
+fn section(section, index, references: snippet.Referenced) {
   let snippet.Snippet(context, code, snippet) = section
 
   let on_update = fn(new) { state.EditCode(index, new) }
@@ -344,17 +353,23 @@ fn section(section, index) {
           let #(next, pushed) = acc
           case assignment {
             #(line, Ok(ref)) if line >= next -> {
-              let padding = list.repeat(h.br([]), line - next)
-              let pushed = list.append(padding, pushed)
-              let el =
-                h.button(
-                  [
-                    a.class("bg-red-400 text-white px-2 -mr-2 rounded-l"),
-                    e.on_click(state.Run(ref)),
-                  ],
-                  [text("Run >")],
-                )
-              #(line + 1, [h.br([]), el, ..pushed])
+              case dict.get(references.types, ref) {
+                Ok(t.Fun(_, _, _)) -> {
+                  // io.debug(x)
+                  let padding = list.repeat(h.br([]), line - next)
+                  let pushed = list.append(padding, pushed)
+                  let el =
+                    h.button(
+                      [
+                        a.class("bg-red-400 text-white px-2 -mr-2 rounded-l"),
+                        e.on_click(state.Run(ref)),
+                      ],
+                      [text("Run >")],
+                    )
+                  #(line + 1, [h.br([]), el, ..pushed])
+                }
+                _ -> acc
+              }
             }
             _ -> acc
           }
@@ -381,7 +396,7 @@ fn section(section, index) {
         h.div([a.class("my-4 bg-gray-200 rounded bg-opacity-70")], [
           h.div([a.class("p-2")], [text_input(code, on_update, error_spans)]),
           h.div(
-            [a.class("")],
+            [a.class("sticky bottom-0")],
             list.map(error_messages, fn(message) {
               h.div(
                 [a.class("px-2 -mt-1 py-1 rounded bg-pink-500 text-white")],

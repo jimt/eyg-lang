@@ -241,6 +241,8 @@ pub fn update(state, message) {
           references
         }
       }
+      let #(document, references) =
+        snippet.reprocess_document(state.document, references)
       // let State(references: references, running: running, ..) = state
       // io.println("Added reference: " <> reference)
       // let references = dict.insert(references, reference, value)
@@ -259,7 +261,13 @@ pub fn update(state, message) {
       //   }
       //   other -> #(other, effect.none())
       // }
-      let state = State(..state, references: references, loading: loading)
+      let state =
+        State(
+          ..state,
+          references: references,
+          loading: loading,
+          document: document,
+        )
       #(state, effect.none())
     }
     CloseRunner -> {

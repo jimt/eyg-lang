@@ -3,16 +3,20 @@ import eyg/analysis/type_/binding/error
 import eyg/analysis/type_/isomorphic as t
 import gleam/dict
 import gleam/int
+import gleam/io
 import gleam/result.{try}
 
 pub fn unify(t1, t2, level, bindings) {
   do_unify([#(t1, t2)], level, bindings)
 }
 
+// https://github.com/7sharp9/write-you-an-inference-in-fsharp/blob/master/HMPure-Rowpolymorphism/HMPureRowpolymorphism.fs
+// doesn't implement the side condition mentioned in section 7 of https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/scopedlabels.pdf
+
 fn do_unify(ts, level, bindings) -> Result(dict.Dict(Int, binding.Binding), _) {
   case ts {
     [] -> Ok(bindings)
-    [#(t1, t2), ..ts] ->
+    [#(t1, t2), ..ts] -> {
       case t1, find(t1, bindings), t2, find(t2, bindings) {
         t.Var(i), _, t.Var(j), _ if i == j -> do_unify(ts, level, bindings)
         _, Ok(binding.Bound(t1)), _, _ ->
@@ -47,15 +51,14 @@ fn do_unify(ts, level, bindings) -> Result(dict.Dict(Int, binding.Binding), _) {
           do_unify([#(rows1, rows2), ..ts], level, bindings)
         t.RowExtend(l1, field1, rest1), _, other, _
         | other, _, t.RowExtend(l1, field1, rest1), _
-        -> {
-          case rewrite_row(l1, other, level, bindings, Ok) {
+        ->
+          case rewrite_row(l1, other, level, bindings, rest1) {
             Ok(#(field2, rest2, bindings)) -> {
               let ts = [#(field1, field2), #(rest1, rest2), ..ts]
               do_unify(ts, level, bindings)
             }
             Error(reason) -> Error(reason)
           }
-        }
         t.EffectExtend(l1, #(lift1, reply1), r1), _, other, _
         | other, _, t.EffectExtend(l1, #(lift1, reply1), r1), _
         -> {
@@ -71,6 +74,24 @@ fn do_unify(ts, level, bindings) -> Result(dict.Dict(Int, binding.Binding), _) {
           do_unify([#(t1, t2), ..ts], level, bindings)
         _, _, _, _ -> Error(error.TypeMismatch(t1, t2))
       }
+    }
+  }
+}
+
+fn tail_occurs(tail: t.Type(Int), type_) {
+  case tail {
+    t.Var(var) -> do_tail_occurs(var, type_)
+    _ -> Ok(False)
+  }
+}
+
+fn do_tail_occurs(var: Int, type_) {
+  case type_ {
+    t.Var(v) if v == var -> Ok(True)
+    t.Var(_) -> Ok(False)
+    t.Empty -> Ok(False)
+    t.RowExtend(_, _, tail) -> do_tail_occurs(var, tail)
+    _ -> Error("weird types")
   }
 }
 
@@ -123,26 +144,37 @@ fn occurs_and_levels(i, level, type_, bindings, k) {
   }
 }
 
-fn rewrite_row(required, type_, level, bindings, k) {
+fn rewrite_row(required, type_, level, bindings, check) {
   case type_ {
     t.Empty -> Error(error.MissingRow(required))
-    t.RowExtend(l, field, rest) if l == required -> k(#(field, rest, bindings))
+    t.RowExtend(l, field, rest) if l == required -> Ok(#(field, rest, bindings))
     t.RowExtend(l, other_field, rest) -> {
-      use #(field, new_tail, bindings) <- rewrite_row(
+      use #(field, new_tail, bindings) <- try(rewrite_row(
         required,
         rest,
         level,
         bindings,
-      )
+        check,
+      ))
       let rest = t.RowExtend(l, other_field, new_tail)
-      k(#(field, rest, bindings))
+      Ok(#(field, rest, bindings))
     }
     t.Var(i) -> {
-      // Not sure why this is different to effects
-      let #(field, bindings) = binding.mono(level, bindings)
-      let #(rest, bindings) = binding.mono(level, bindings)
-      let type_ = t.RowExtend(required, field, rest)
-      k(#(field, rest, dict.insert(bindings, i, binding.Bound(type_))))
+      case check {
+        // catch infinite loop
+        t.Var(j) if i == j -> {
+          io.debug("same tails")
+          Error(error.TypeMismatch(t.Var(i), t.Var(j)))
+        }
+        _ -> {
+          // Not sure why this is different to effects
+          let #(field, bindings) = binding.mono(level, bindings)
+          let #(rest, bindings) = binding.mono(level, bindings)
+
+          let type_ = t.RowExtend(required, field, rest)
+          Ok(#(field, rest, dict.insert(bindings, i, binding.Bound(type_))))
+        }
+      }
     }
     _ -> panic as "bad row"
   }

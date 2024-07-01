@@ -401,7 +401,9 @@ fn handle_next(
               )
             }
             "Fetch" -> {
-              let assert Ok(request) = http.request_to_gleam(lift)
+              let assert Ok(request) =
+                http.request_to_gleam(lift)
+                |> io.debug()
               let task = fetch.do(request)
               let value = fetch.task_to_eyg(task)
               let effects = [Fetched(request), ..effects]

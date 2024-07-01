@@ -51,7 +51,7 @@ fn build_intro() {
 
   let #(pages, _content) = content.pages() |> list.unzip
   let store =
-    list.map([], fn(page) {
+    list.map(content.pages(), fn(page) {
       let #(name, sections) = page
       let #(ref, code) = snippet.document_to_code(sections, snippet.empty())
       let content = <<encode.to_json(code):utf8>>

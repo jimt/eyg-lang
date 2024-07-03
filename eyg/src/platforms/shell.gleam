@@ -15,6 +15,7 @@ import gleam/list
 import gleam/result
 import gleam/string
 import harness/effect
+import harness/fetch
 import harness/ffi/core
 import harness/impl/http
 import harness/stdlib
@@ -38,7 +39,6 @@ pub fn close(interface: Interface) -> promise.Promise(String)
 fn handlers() {
   effect.init()
   |> effect.extend("Log", effect.debug_logger())
-  |> effect.extend("HTTP", effect.http())
   |> effect.extend("Open", effect.open())
   |> effect.extend("Await", effect.await())
   |> effect.extend("Wait", effect.wait())

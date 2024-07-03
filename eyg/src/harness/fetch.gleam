@@ -4,6 +4,13 @@ import gleam/javascript/promise
 import gleam/string
 import harness/http
 
+pub fn handle(lift) {
+  case http.request_to_gleam(lift) {
+    Ok(request) -> Ok(task_to_eyg(do(request)))
+    Error(reason) -> Error(reason)
+  }
+}
+
 pub fn do(request) {
   use response <- promise.try_await(fetch.send_bits(request))
   fetch.read_bytes_body(response)

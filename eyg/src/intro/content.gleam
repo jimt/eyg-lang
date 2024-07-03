@@ -2,16 +2,6 @@ import lustre/attribute as a
 import lustre/element.{fragment, none, text} as _
 import lustre/element/html as h
 
-const code = "let x = 1
-let y = 2
-let z = 3
-let http = std.http
-let set_username = (user_id, name) -> {
-  let request = http.get()
-  perform Fetch(request)
-}
-set_username(\"123124248p574975345\", \"Bob\")"
-
 pub fn pages() {
   [
     #("intro", [
@@ -20,15 +10,14 @@ pub fn pages() {
         "let { debug } = #h1c86c927
 let http = #h85a585d
 let task = #h67a13d96
-let json = #hf3e3d79c
+let json = #hd76acaa1
 
 let run = (_) -> {
   let request = http.get(\"catfact.ninja\", \"/fact\", None({}))
   let response = task.fetch(request)
 
   let decoder = json.object(json.field(\"fact\", json.string, json.done), (fact) -> { fact })
-  decoder(!binary_to_string(response))
-
+  json.parse_bytes(decoder, response)
 }",
       ),
       #(h.p([], [text("whats the point")]), "let x = todo"),
@@ -462,6 +451,20 @@ let parse = (decoder, raw) -> {
   }
 }
  
+let parse_bytes = (decoder, bytes) -> {
+  
+  match !binary_to_string(bytes) {
+    Ok(string) -> { match flat(tokenise(string)) {
+      Ok(flattened) -> { match decoder(flattened) {
+        Ok({value}) -> { Ok(value) }
+        |(other) -> { other }
+      } }
+      |(other) -> { other }
+    } }
+    |(other) -> { other }
+  }
+}
+
 let run = (_) -> {
   let _ = parse(l(boolean), \"[true]\")
    parse(l(integer), \"[2]\")

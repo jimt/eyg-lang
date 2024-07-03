@@ -103,7 +103,7 @@ pub fn runner(state) {
           a.class(
             "bg-white bottom-8 fixed right-4 rounded top-4 w-1/3 shadow-xl border",
           ),
-          a.style([#("left", "96ch")]),
+          a.style([#("left", "116ch")]),
         ],
         [
           h.h1([a.class("text-right")], [

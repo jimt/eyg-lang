@@ -23,8 +23,6 @@ fn pop(raw, start) {
 
   // If we track whitespace token then can always return original start
   case raw {
-    // "\r\n" <> rest -> pop(rest, start + 2)
-    // "\n" <> rest | " " <> rest | "\t" <> rest -> pop(rest, start + 1)
     "\r\n" <> rest -> whitespace("\r\n", rest, done)
     "\n" <> rest -> whitespace("\n", rest, done)
     " " <> rest -> whitespace(" ", rest, done)

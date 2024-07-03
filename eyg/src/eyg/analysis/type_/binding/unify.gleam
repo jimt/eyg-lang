@@ -13,6 +13,9 @@ pub fn unify(t1, t2, level, bindings) {
 // https://github.com/7sharp9/write-you-an-inference-in-fsharp/blob/master/HMPure-Rowpolymorphism/HMPureRowpolymorphism.fs
 // doesn't implement the side condition mentioned in section 7 of https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/scopedlabels.pdf
 
+// Note need to not use `use` for tail recursive functions. https://discord.com/channels/768594524158427167/1256908009389424814
+// I have migrated do_unify but not occurs check or rewrite rows/effects
+
 fn do_unify(ts, level, bindings) -> Result(dict.Dict(Int, binding.Binding), _) {
   case ts {
     [] -> Ok(bindings)
@@ -62,7 +65,7 @@ fn do_unify(ts, level, bindings) -> Result(dict.Dict(Int, binding.Binding), _) {
         t.EffectExtend(l1, #(lift1, reply1), r1), _, other, _
         | other, _, t.EffectExtend(l1, #(lift1, reply1), r1), _
         -> {
-          case rewrite_effect(l1, other, level, bindings, Ok) {
+          case rewrite_effect(l1, other, level, bindings, r1) {
             Ok(#(#(lift2, reply2), r2, bindings)) -> {
               let ts = [#(lift1, lift2), #(reply1, reply2), #(r1, r2), ..ts]
               do_unify(ts, level, bindings)
@@ -75,23 +78,6 @@ fn do_unify(ts, level, bindings) -> Result(dict.Dict(Int, binding.Binding), _) {
         _, _, _, _ -> Error(error.TypeMismatch(t1, t2))
       }
     }
-  }
-}
-
-fn tail_occurs(tail: t.Type(Int), type_) {
-  case tail {
-    t.Var(var) -> do_tail_occurs(var, type_)
-    _ -> Ok(False)
-  }
-}
-
-fn do_tail_occurs(var: Int, type_) {
-  case type_ {
-    t.Var(v) if v == var -> Ok(True)
-    t.Var(_) -> Ok(False)
-    t.Empty -> Ok(False)
-    t.RowExtend(_, _, tail) -> do_tail_occurs(var, tail)
-    _ -> Error("weird types")
   }
 }
 
@@ -180,37 +166,46 @@ fn rewrite_row(required, type_, level, bindings, check) {
   }
 }
 
-fn rewrite_effect(required, type_, level, bindings, k) {
+fn rewrite_effect(required, type_, level, bindings, check: t.Type(_)) {
   case type_ {
     t.Empty -> Error(error.MissingRow(required))
-    t.EffectExtend(l, eff, rest) if l == required -> k(#(eff, rest, bindings))
+    t.EffectExtend(l, eff, rest) if l == required -> Ok(#(eff, rest, bindings))
     t.EffectExtend(l, other_eff, rest) -> {
-      use #(eff, new_tail, bindings) <- rewrite_effect(
+      use #(eff, new_tail, bindings) <- try(rewrite_effect(
         required,
         rest,
         level,
         bindings,
-      )
-      // use #(eff, new_tail, s) <-  try(rewrite_effect(l, rest, s))
+        check,
+      ))
       let rest = t.EffectExtend(l, other_eff, new_tail)
-      k(#(eff, rest, bindings))
+      Ok(#(eff, rest, bindings))
     }
     t.Var(i) -> {
-      let #(lift, bindings) = binding.mono(level, bindings)
-      let #(reply, bindings) = binding.mono(level, bindings)
-
-      // Might get bound during tail rewrite
-      let assert Ok(binding) = dict.get(bindings, i)
-      case binding {
-        binding.Unbound(level) -> {
-          let #(rest, bindings) = binding.mono(level, bindings)
-
-          let type_ = t.EffectExtend(required, #(lift, reply), rest)
-          let bindings = dict.insert(bindings, i, binding.Bound(type_))
-          k(#(#(lift, reply), rest, bindings))
+      case check {
+        // catch infinite loop
+        t.Var(j) if i == j -> {
+          io.debug("same tails")
+          Error(error.TypeMismatch(t.Var(i), t.Var(j)))
         }
-        binding.Bound(type_) ->
-          rewrite_effect(required, type_, level, bindings, k)
+        _ -> {
+          let #(lift, bindings) = binding.mono(level, bindings)
+          let #(reply, bindings) = binding.mono(level, bindings)
+
+          // Might get bound during tail rewrite
+          let assert Ok(binding) = dict.get(bindings, i)
+          case binding {
+            binding.Unbound(level) -> {
+              let #(rest, bindings) = binding.mono(level, bindings)
+
+              let type_ = t.EffectExtend(required, #(lift, reply), rest)
+              let bindings = dict.insert(bindings, i, binding.Bound(type_))
+              Ok(#(#(lift, reply), rest, bindings))
+            }
+            binding.Bound(type_) ->
+              rewrite_effect(required, type_, level, bindings, check)
+          }
+        }
       }
     }
     // _ -> Error(error.TypeMismatch(EffectExtend(required, type_, t.Empty), type_))

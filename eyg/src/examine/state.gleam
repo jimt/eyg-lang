@@ -2,21 +2,18 @@ import eyg/analysis/inference/levels_j/contextual as j
 import eyg/analysis/type_/binding
 import eyg/analysis/type_/isomorphic as t
 import eyg/compile
-import eyg/parse/lexer
-import eyg/parse/parser
+import eyg/parse
 import eyg/runtime/cast
 import eyg/runtime/interpreter/live
 import eyg/runtime/value as v
 import eyg/text/text
 import eygir/annotated
-import gleam/bit_array
 import gleam/dict
 import gleam/io
 import gleam/javascript as js
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
-import gleam/string
 import harness/effect as impl
 import lustre/effect
 import plinth/browser/document
@@ -34,12 +31,6 @@ pub type State {
 
 pub fn source(state: State) {
   state.source
-}
-
-fn parse(src) {
-  src
-  |> lexer.lex()
-  |> parser.parse()
 }
 
 pub fn apply_span(lines, span, thing, acc) {
@@ -109,8 +100,8 @@ pub fn highlights(state, spans, acc) {
 }
 
 pub fn information(state) {
-  case parse(source(state)) {
-    Ok(tree) -> {
+  case parse.from_string(source(state)) {
+    Ok(#(tree, _rest)) -> {
       let #(tree, spans) = annotated.strip_annotation(tree)
       let #(exp, bindings) =
         j.infer(tree, t.Empty, dict.new(), 0, j.new_state())
@@ -142,8 +133,8 @@ pub fn interpret(state) {
         Ok(v.unit)
       }),
     ])
-  case parse(source(state)) {
-    Ok(tree) -> {
+  case parse.from_string(source(state)) {
+    Ok(#(tree, _rest)) -> {
       let #(r, assignments) = live.execute(tree, h)
       let lines = list.map(text.line_offsets(source(state)), fn(x) { #(x, []) })
       let output =
@@ -162,8 +153,8 @@ pub fn interpret(state) {
 }
 
 pub fn compile(state) {
-  case parse(source(state)) {
-    Ok(tree) -> {
+  case parse.from_string(source(state)) {
+    Ok(#(tree, _rest)) -> {
       Ok(compile.to_js(tree, dict.new()))
     }
     Error(reason) -> Error(reason)

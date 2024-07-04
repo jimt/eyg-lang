@@ -21,7 +21,8 @@ import gleam/list
 import gleam/result.{try}
 import gleam/string
 import harness/stdlib
-import plinth/browser/crypto/subtle
+
+// import plinth/browser/crypto/subtle
 
 type Value =
   v.Value(Span, #(List(#(istate.Kontinue(Span), Span)), Env(Span)))

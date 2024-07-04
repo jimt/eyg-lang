@@ -324,7 +324,6 @@ fn do_load(reference) {
   io.println("Loading reference: " <> reference)
   use file <- t.try(case reference {
     "standard_library" -> Ok("std.json")
-    "json" -> Ok("json.json")
     "h" <> _hash -> Ok(reference <> ".json")
     _ -> Error(snag.new("no file for reference: " <> reference))
   })

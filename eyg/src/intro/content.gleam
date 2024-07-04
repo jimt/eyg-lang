@@ -6,6 +6,26 @@ pub fn pages() {
   [
     #("intro", [
       #(
+        h.div([], [text("HTTP")]),
+        "let http = #h85a585d
+let task = #h67a13d96
+let json = #hd76acaa1
+
+let result_decoder = json.object(
+  json.field(\"sunrise\", json.string, 
+  json.field(\"sunset\", json.string,
+  json.done)), (sunrise, sunset) -> { {sunrise, sunset} })
+let decoder = json.object(json.field(\"results\", result_decoder, json.done), (x) -> { x }) 
+
+let run = (_) -> {
+  let query = \"lat=38.907192&lng=-77.036873\"
+  let request = http.get(\"api.sunrisesunset.io\", \"/json\", Some(query))
+  let response = task.fetch(request)
+
+  json.parse_bytes(decoder, response)
+}",
+      ),
+      #(
         h.div([], [text("cat")]),
         "let { debug } = #h1c86c927
 let http = #h85a585d
@@ -471,272 +491,5 @@ let run = (_) -> {
 }",
       ),
     ]),
-    //     #(
-
-  // "
-
-  // } ",
-  //     ),
-  //     #(
-  //       h.div([], [text("parseing")]),
-  //       "let { list, debug, equal } = #h1c86c927
-
-  // let string = (k, tokens) -> {
-  //   !uncons(tokens,
-  //     (_) -> { Error(UnexpectedEnd({})) },
-  //     (token, rest) -> { match token {
-  //       String(raw) -> { k(raw, rest) }
-  //       |(_) -> { Error(UnexpectedToken(token)) }
-  //     } }
-  //   )
-  // }
-
-  // let integer = (k, tokens) -> {
-  //   !uncons(tokens,
-  //     (_) -> { Error(UnexpectedEnd({})) },
-  //     (token, rest) -> { match token {
-  //       Number(raw) -> { k(raw, rest) }
-  //       |(_) -> { Error(UnexpectedToken(token)) }
-  //     } }
-  //   )
-  // }
-
-  // let pop = (items, or) -> {
-  //   !uncons(items,
-  //     (_) -> { perform Abort(or) },
-  //     (token, rest) -> { {token, rest} }
-  //   )
-  // }
-
-  // let take = (tokens) -> { pop(tokens, UnexpectedEnd({})) }
-
-  // let drop_item = !fix((drop_item, rest) -> {
-  //   let {token, rest} = take(rest)
-  //   match token {
-  //     LeftBracket(_) -> {
-  //       let {token, rest} = take(rest)
-  //       match token {
-  //         RightBracket(_) -> { rest }
-  //         |(_) -> {
-  //           let rest = drop_item(rest)
-  //           !fix((drop_element, rest) -> {
-  //             let {token, rest} = take(rest)
-  //             match token {
-  //               RightBracket(_) -> { rest }
-  //               Comma(_) -> { 
-  //                 let rest = drop_item(rest)
-  //                 drop_element(rest)
-  //               }
-  //               |(_) -> { perform Abort(UnexpectedToken(token)) }
-  //             }
-  //           }, rest)
-  //         }
-  //       }
-  //     }
-
-  //     LeftBrace({}) -> {
-  //       let {token, rest} = take(rest)
-  //       match token {
-  //         RightBrace(_) -> { rest }
-  //         String(_) -> { 
-  //           let {token, rest} = take(rest)
-  //           let rest = match token {
-  //             Colon(_) -> { rest }
-  //             |(_) -> { perform Abort(UnexpectedToken(token)) }
-  //           }
-  //           let rest = drop_item(rest)
-  //           !fix((drop_field, rest) -> {
-  //             let {token, rest} = take(rest)
-  //             match token {
-  //               RightBrace(_) -> { rest }
-  //               Comma(_) -> { 
-  //                 let {token, rest} = take(rest)
-  //                 let rest = match token {
-  //                   String(_) -> { rest }
-  //                   |(_) -> { perform Abort(UnexpectedToken(token)) }
-  //                 }
-  //                 let {token, rest} = take(rest)
-  //                 let rest = match token {
-  //                   Colon(_) -> { rest }
-  //                   |(_) -> { perform Abort(UnexpectedToken(token)) }
-  //                 }
-  //                 let rest = drop_item(rest)
-  //                 drop_field(rest)
-  //               }
-  //               |(_) -> { perform Abort(UnexpectedToken(token)) }
-  //             }
-  //           }, rest)
-  //         }
-  //         |(_) -> { perform Abort(UnexpectedToken(token)) }
-  //       }
-  //     }
-  //     |(_)-> { rest }
-  //   }
-  // })
-
-  // let done = (value, tokens) -> {
-  //   let {token, rest} = take(tokens)
-  //   match token {
-  //     RightBrace(_) -> { {value, rest} }
-  //     String(_) -> { 
-  //       let tokens = [LeftBrace({}),..tokens]
-  //       let rest = drop_item(tokens)
-  //       {value, rest}
-  //     }
-  //     |(_) -> { perform Abort(UnexpectedToken(token)) }
-  //   } 
-  // }
-  // let _ = \"jump to the correct key\"
-
-  // let field = (key, decoder, builder, tokens) -> { 
-  //   let {token, rest} = take(tokens)
-  //   match token {
-  //     String(found) -> { match equal(found, key) {
-  //       True(_) -> { decoder((out,_after) -> { builder(out, tokens) }) }
-  //       False(_) -> { tododropcolonvaluecommaif_error_end_and_no_field }
-  //     }}
-  //     |(_) -> { perform Abort(UnexpectedToken(token)) }
-  //   }
-  // }
-
-  // let object = (decoder, builder, tokens) -> {
-  //   let {token, rest} = take(tokens)
-  //   match token {
-  //     LeftBrace(_) -> { decoder(builder, rest) }
-  //     |(_) -> { perform Abort(UnexpectedToken(token)) }
-  //   }
-  // }
-
-  // let empty_decoder = (raw) -> {
-  //   let d = object(done, \"empty\")
-  //   d(tokenise([], raw))
-  // }
-
-  // let a_decoder = (raw) -> {
-  //   let d = object(field(\"a\", integer, done), (a) -> { a })
-  //   d(tokenise([], raw))
-  // }
-
-  // let list_element = !fix((list_element, decoder, k, acc, rest) -> { 
-  //   !uncons(rest,
-  //     (_) -> { Error(UnexpectedEnd({})) },
-  //     (token, rest) -> { match token {
-  //       Comma(_) -> { 
-  //         decoder((out, after) -> { list_element(decoder, k, [out, ..acc], after) }, rest) 
-  //       }
-  //       RightBracket(_) -> { 
-  //         k(list.reverse(acc), rest) 
-  //       }
-  //       |(_) -> { Error(UnexpectedToken(token)) }
-  //     } }
-  //   )
-  // })
-
-  // let as_list = (decoder, k, tokens) -> {
-  //   !uncons(tokens,
-  //     (_) -> { Error(UnexpectedEnd({})) },
-  //     (token, rest) -> { match token {
-  //       LeftBracket(_) -> { !uncons(rest,
-  //         (_) -> { Error(UnexpectedEnd({})) },
-  //         (token, final) -> { match token {
-  //           RightBracket(_) -> { k([], final) }
-  //           |(_) -> {
-  //             decoder((out, after) -> { list_element(decoder, k, [out], after) }, rest)
-  //           }
-  //         }}
-  //       )}
-  //       |(_) -> { Error(UnexpectedToken(token)) }
-  //     } }
-  //   )
-  // }
-
-  // let parse = (decoder, raw) -> {
-  //   decoder((out,_rest) -> { out }, tokenise([], raw))
-  // }
-
-  // let run = (_) -> {
-  //   let _ = perform Log(parse(string, \"\\\"foo\\\"\"))
-  //   let _ = perform Log(debug(tokenise([], \"[]\")))
-  //   let _ = perform Log(debug(empty_decoder(\"{}\")))
-  //   let _ = perform Log(debug(empty_decoder(\"{\\\"a\\\": 5}\")))
-  //   let _ = perform Log(debug(a_decoder(\"{\\\"a\\\": 5}\")))
-  //   let _ = parse(as_list(integer), \"[]\")
-  //   2
-  // }",
-  //     ),
-  //     #(
-  //       h.div([], [text("Dyamic")]),
-  //       "let do_dynamic = !fix((do_dynamic, rest, k) -> {
-  //   let take_elements = !fix((take_elements, k, acc, rest) -> {
-  //     !uncons(rest,
-  //       (_) -> { Error(UnexpectedEnd({})) },
-  //       (token, rest) -> { match token {
-  //         Comma(_) -> { 
-  //           do_dynamic(rest, (element, rest) -> { take_elements(k, [element, ..acc], rest) })
-  //         }
-  //         RightBracket(_) -> { 
-  //           k(Array(list.reverse(acc)), rest) 
-  //         }
-  //         |(_) -> { Error(UnexpectedToken(token)) }
-  //       } }
-  //     )
-  //   })
-
-  //   !uncons(rest,
-  //     (_) -> { Error(UnexpectedEnd({})) },
-  //     (token, rest) -> { match token {
-  //       Number(raw) -> { k(Number(raw), rest) }
-  //       String(raw) -> { k(String(raw), rest) }
-  //       True(raw) -> { k(True(raw), rest) }
-  //       False(raw) -> { k(False(raw), rest) }
-  //       Null(raw) -> { k(Null(raw), rest) }
-  //       LeftBracket(_) -> { !uncons(rest,
-  //         (_) -> { Error(UnexpectedEnd({})) },
-  //         (token, final) -> { match token {
-  //           RightBracket(_) -> { k(Array([]), final) }
-  //           |(_) -> {
-  //             do_dynamic(rest, (element, rest) -> { take_elements(k, [element], rest) })
-  //           }
-  //         }}
-  //       )}
-  //       |(_) -> { Error(UnexpectedToken(token)) }
-  //     }}
-  //   )
-  // })
-
-  // let dynamic = !fix((dynamic, raw) -> {
-  //   let tokens = tokenise([], raw)
-  //   do_dynamic(tokens, (value,remaining) -> { Ok(value) })
-  // })
-
-  // let run = (_) -> {
-  //   dynamic(\"[1, true]\")
-  // }",
-  //     ),
-  //     #(
-  //       h.div([], [text("HTTP")]),
-  //       "let { http, mime, string } = #h1c86c927
-
-  // let expect = (result) -> {
-  //   match result {
-  //     Ok(value) -> { value }
-  //     Error(reason) -> { perform Abort(reason) }
-  //   }
-  // }
-
-  // let run = (_) -> {
-  //   let request = http.get(\"api.sunrisesunset.io\")
-  //   let request = {
-  //     path: \"/json\",
-  //     query: Some(\"lat=38.907192&lng=-77.036873\"),
-  //     body: !string_to_binary(\"\"),
-  //     ..request}
-  //   let response = expect(perform Await(perform Fetch(request)))
-
-  //   let json = expect(!binary_to_string(response.body))
-  //   let _ = perform Log(json)
-  //   tokenise([], json)
-  // }",
-  //     ),
   ]
 }

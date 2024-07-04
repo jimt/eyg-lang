@@ -47,8 +47,6 @@ fn build_intro() {
   let std_hash = snippet.hash_code(string.inspect(expression))
   use Nil <- t.do(t.log(std_hash))
 
-  use json <- t.do(t.read("saved/json.json"))
-
   let #(pages, _content) = content.pages() |> list.unzip
   let store =
     list.map(content.pages(), fn(page) {
@@ -66,7 +64,6 @@ fn build_intro() {
       #("/intro/index.css", style),
       #("/saved/std.json", stdlib),
       #("/saved/h" <> std_hash <> ".json", stdlib),
-      #("/saved/json.json", json),
       ..list.map(pages, fn(page) {
         #("/guide/" <> page <> "/index.html", index)
       })

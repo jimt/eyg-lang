@@ -322,6 +322,7 @@ pub fn expression_to_language(exp) {
     e.Handle(label) -> [v.Tagged("Handle", v.Str(label))]
     e.Shallow(label) -> [v.Tagged("Shallow", v.Str(label))]
     e.Builtin(identifier) -> [v.Tagged("Builtin", v.Str(identifier))]
+    e.Reference(identifier) -> [v.Tagged("Reference", v.Str(identifier))]
   }
 }
 

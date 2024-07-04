@@ -1323,6 +1323,7 @@ fn to_html(sections) {
       print.Label -> ["text-blue-3"]
       print.Effect -> ["text-yellow-4"]
       print.Builtin -> ["italic underline"]
+      print.Reference -> ["italic underline"]
     }
     let class =
       case err {

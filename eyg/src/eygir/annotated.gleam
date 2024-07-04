@@ -35,6 +35,7 @@ pub type Expression(m) {
   Shallow(label: String)
 
   Builtin(identifier: String)
+  Reference(identifier: String)
 }
 
 pub fn strip_annotation(in) {
@@ -87,6 +88,7 @@ fn do_strip_annotation(in, acc) {
     Shallow(label) -> #(e.Shallow(label), acc)
 
     Builtin(identifier) -> #(e.Builtin(identifier), acc)
+    Reference(identifier) -> #(e.Reference(identifier), acc)
   }
 }
 
@@ -125,6 +127,7 @@ pub fn add_annotation(exp, meta) {
     e.Shallow(label) -> #(Shallow(label), meta)
 
     e.Builtin(identifier) -> #(Builtin(identifier), meta)
+    e.Reference(identifier) -> #(Reference(identifier), meta)
   }
 }
 
@@ -220,7 +223,7 @@ pub fn substitute_for_references(exp, subs) {
   let exp = case exp {
     Variable(var) ->
       case list.key_find(subs, var) {
-        Ok(ref) -> Builtin("#" <> ref)
+        Ok(ref) -> Reference(ref)
         Error(Nil) -> exp
       }
     Let(var, value, then) -> {

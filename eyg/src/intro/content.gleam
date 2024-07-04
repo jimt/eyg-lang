@@ -8,8 +8,8 @@ pub fn pages() {
       #(
         h.div([], [text("HTTP")]),
         "let http = #h85a585d
-let task = #h67a13d96
-let json = #hd76acaa1
+let task = #h3a65ae15
+let json = #h53ac7475
 
 let result_decoder = json.object(
   json.field(\"sunrise\", json.string, 
@@ -29,8 +29,8 @@ let run = (_) -> {
         h.div([], [text("cat")]),
         "let { debug } = #h1c86c927
 let http = #h85a585d
-let task = #h67a13d96
-let json = #hd76acaa1
+let task = #h3a65ae15
+let json = #h53ac7475
 
 let run = (_) -> {
   let request = http.get(\"catfact.ninja\", \"/fact\", None({}))

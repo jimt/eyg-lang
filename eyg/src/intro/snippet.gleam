@@ -270,7 +270,8 @@ pub fn process_snippet(state, code) {
 
 fn missing_references_per_section(r) {
   case r {
-    Ok(Processed(errors: errors, ..)) ->
+    Ok(Processed(errors: errors, ..)) -> {
+      io.debug(errors)
       list.filter_map(errors, fn(error) {
         let #(reason, _span) = error
         case reason {
@@ -278,6 +279,7 @@ fn missing_references_per_section(r) {
           _ -> Error(Nil)
         }
       })
+    }
     _ -> []
   }
 }

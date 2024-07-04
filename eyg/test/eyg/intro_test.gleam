@@ -119,7 +119,7 @@ let l = k"
 }
 
 fn ref(hash) {
-  e.Builtin("#" <> hash)
+  e.Reference(hash)
 }
 
 pub fn replace_test() {
